@@ -1,0 +1,244 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 39 96% 52%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 39 96% 52%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 262 83% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Styles spécifiques pour forcer la visibilité en mode sombre */
+@layer components {
+  /* Force tous les inputs à être visibles en mode sombre */
+  @media (prefers-color-scheme: dark) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    textarea,
+    select {
+      background-color: rgb(30 41 59) !important; /* slate-800 */
+      color: rgb(248 250 252) !important; /* slate-50 */
+      border-color: rgb(71 85 105) !important; /* slate-600 */
+    }
+
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="password"]:focus,
+    input[type="number"]:focus,
+    input[type="tel"]:focus,
+    input[type="url"]:focus,
+    input[type="search"]:focus,
+    input[type="date"]:focus,
+    input[type="time"]:focus,
+    input[type="datetime-local"]:focus,
+    textarea:focus,
+    select:focus {
+      background-color: rgb(30 41 59) !important;
+      color: rgb(248 250 252) !important;
+      border-color: rgb(147 51 234) !important; /* purple-600 */
+      box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.2) !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: rgb(148 163 184) !important; /* slate-400 */
+    }
+
+    /* Force tous les boutons à être visibles */
+    button {
+      color: rgb(248 250 252) !important;
+    }
+
+    /* Boutons primaires */
+    button:not(.btn-outline):not(.btn-ghost):not(.btn-link) {
+      background-color: rgb(147 51 234) !important; /* purple-600 */
+      color: rgb(248 250 252) !important;
+      border-color: rgb(147 51 234) !important;
+    }
+
+    button:not(.btn-outline):not(.btn-ghost):not(.btn-link):hover {
+      background-color: rgb(126 34 206) !important; /* purple-700 */
+      border-color: rgb(126 34 206) !important;
+    }
+
+    /* Boutons outline */
+    button.btn-outline,
+    .btn-outline {
+      background-color: transparent !important;
+      color: rgb(248 250 252) !important;
+      border-color: rgb(71 85 105) !important;
+    }
+
+    button.btn-outline:hover,
+    .btn-outline:hover {
+      background-color: rgb(30 41 59) !important;
+      color: rgb(248 250 252) !important;
+      border-color: rgb(147 51 234) !important;
+    }
+
+    /* Boutons ghost */
+    button.btn-ghost,
+    .btn-ghost {
+      background-color: transparent !important;
+      color: rgb(248 250 252) !important;
+      border-color: transparent !important;
+    }
+
+    button.btn-ghost:hover,
+    .btn-ghost:hover {
+      background-color: rgb(30 41 59) !important;
+      color: rgb(248 250 252) !important;
+    }
+
+    /* Boutons destructifs */
+    button.btn-destructive,
+    .btn-destructive {
+      background-color: rgb(220 38 38) !important; /* red-600 */
+      color: rgb(248 250 252) !important;
+      border-color: rgb(220 38 38) !important;
+    }
+
+    button.btn-destructive:hover,
+    .btn-destructive:hover {
+      background-color: rgb(185 28 28) !important; /* red-700 */
+      border-color: rgb(185 28 28) !important;
+    }
+
+    /* Cards et autres éléments */
+    .card {
+      background-color: rgb(30 41 59) !important;
+      color: rgb(248 250 252) !important;
+      border-color: rgb(71 85 105) !important;
+    }
+
+    /* Tables */
+    table {
+      background-color: rgb(30 41 59) !important;
+      color: rgb(248 250 252) !important;
+    }
+
+    th,
+    td {
+      border-color: rgb(71 85 105) !important;
+      color: rgb(248 250 252) !important;
+    }
+
+    /* Dropdowns et selects */
+    [role="combobox"],
+    [role="listbox"],
+    [role="option"] {
+      background-color: rgb(30 41 59) !important;
+      color: rgb(248 250 252) !important;
+      border-color: rgb(71 85 105) !important;
+    }
+
+    /* Badges */
+    .badge {
+      color: rgb(248 250 252) !important;
+    }
+
+    /* Sidebar spécifique */
+    .sidebar {
+      background-color: rgb(15 23 42) !important; /* slate-900 */
+      color: rgb(248 250 252) !important;
+      border-color: rgb(71 85 105) !important;
+    }
+
+    /* Navigation links */
+    nav a {
+      color: rgb(248 250 252) !important;
+    }
+
+    nav a:hover {
+      color: rgb(196 181 253) !important; /* purple-300 */
+    }
+  }
+
+  /* Classes utilitaires pour forcer les styles */
+  .force-dark-input {
+    background-color: rgb(30 41 59) !important;
+    color: rgb(248 250 252) !important;
+    border-color: rgb(71 85 105) !important;
+  }
+
+  .force-dark-button {
+    background-color: rgb(147 51 234) !important;
+    color: rgb(248 250 252) !important;
+    border-color: rgb(147 51 234) !important;
+  }
+
+  .force-dark-card {
+    background-color: rgb(30 41 59) !important;
+    color: rgb(248 250 252) !important;
+    border-color: rgb(71 85 105) !important;
+  }
+}
+
+/* Gradient Droovo adapté pour le mode sombre */
+.bg-droovo-gradient {
+  background: linear-gradient(135deg, #8b5cf6 0%, #f97316 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .bg-droovo-gradient {
+    background: linear-gradient(135deg, #7c3aed 0%, #ea580c 100%) !important;
+  }
+}

@@ -1,0 +1,280 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  name        String
+  phone       String?
+  address     String?
+  city        String?
+  postalCode  String?
+  restaurantName String?
+  cuisine     String?
+  description String?  @db.Text
+  logo        String?
+  isActive    Boolean  @default(true)
+  role        Role     @default(RESTAURANT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  orders      Order[]
+  dishes      Dish[]
+  promotions  Promotion[]
+  reviews     Review[]
+  reservations Reservation[]
+  payments    Payment[]
+
+  @@map("users")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  address   String?
+  city      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  orders       Order[]
+  reviews      Review[]
+  reservations Reservation[]
+
+  @@map("customers")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  dishes Dish[]
+
+  @@map("categories")
+}
+
+model Dish {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  image       String?
+  isAvailable Boolean  @default(true)
+  preparationTime Int? // en minutes
+  ingredients String?  @db.Text
+  allergens   String?
+  calories    Int?
+  isVegetarian Boolean @default(false)
+  isVegan     Boolean @default(false)
+  isGlutenFree Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign Keys
+  categoryId  String
+  userId      String
+
+  // Relations
+  category    Category @relation(fields: [categoryId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  orderItems  OrderItem[]
+
+  @@map("dishes")
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique
+  status        OrderStatus @default(PENDING)
+  totalAmount   Decimal     @db.Decimal(10, 2)
+  deliveryFee   Decimal?    @db.Decimal(10, 2)
+  tax           Decimal?    @db.Decimal(10, 2)
+  discount      Decimal?    @db.Decimal(10, 2)
+  deliveryAddress String?
+  deliveryTime  DateTime?
+  notes         String?     @db.Text
+  paymentMethod PaymentMethod?
+  paymentStatus PaymentStatus @default(PENDING)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Foreign Keys
+  customerId    String
+  userId        String
+
+  // Relations
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
+  orderItems    OrderItem[]
+  payment       Payment?
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  notes     String?
+
+  // Foreign Keys
+  orderId   String
+  dishId    String
+
+  // Relations
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish      Dish    @relation(fields: [dishId], references: [id])
+
+  @@map("order_items")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 étoiles
+  comment   String?  @db.Text
+  isVisible Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign Keys
+  customerId String
+  userId     String
+
+  // Relations
+  customer   Customer @relation(fields: [customerId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("reviews")
+}
+
+model Promotion {
+  id          String      @id @default(cuid())
+  name        String
+  description String?     @db.Text
+  type        PromotionType
+  value       Decimal     @db.Decimal(10, 2) // pourcentage ou montant fixe
+  code        String?     @unique
+  minAmount   Decimal?    @db.Decimal(10, 2)
+  maxDiscount Decimal?    @db.Decimal(10, 2)
+  usageLimit  Int?
+  usageCount  Int         @default(0)
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Foreign Keys
+  userId      String
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@map("promotions")
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  date         DateTime
+  time         String
+  partySize    Int
+  status       ReservationStatus @default(PENDING)
+  notes        String?           @db.Text
+  specialRequests String?        @db.Text
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Foreign Keys
+  customerId   String
+  userId       String
+
+  // Relations
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  user         User              @relation(fields: [userId], references: [id])
+
+  @@map("reservations")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  transactionId String?       @unique
+  gatewayResponse String?     @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Foreign Keys
+  orderId       String        @unique
+  userId        String
+
+  // Relations
+  order         Order         @relation(fields: [orderId], references: [id])
+  user          User          @relation(fields: [userId], references: [id])
+
+  @@map("payments")
+}
+
+// Enums
+enum Role {
+  ADMIN
+  RESTAURANT
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  PAYPAL
+  STRIPE
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_DELIVERY
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
