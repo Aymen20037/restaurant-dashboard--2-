@@ -37,11 +37,12 @@ export default async function handler(
     // Auth utilisateur
     const user = await getSessionUser(req, res);
 
+    // === GET /api/dishes ===
     if (req.method === "GET") {
       const { category, search } = req.query;
 
       const where: any = {
-        userId: user.id, 
+        userId: user.id,
       };
 
       if (category && typeof category === "string" && category !== "all") {
@@ -65,9 +66,11 @@ export default async function handler(
         },
       });
 
+      // Pas de split : renvoyer `ingredients` tel quel (string ou null)
       return res.status(200).json({ dishes });
     }
 
+    // === POST /api/dishes ===
     if (req.method === "POST") {
       const parsedBody = createDishSchema.safeParse(req.body);
 
@@ -80,22 +83,19 @@ export default async function handler(
 
       const data: CreateDishInput = parsedBody.data;
 
-      
-  let ingredientsParsed: string | null = null;
-
-  if (data.ingredients) {
-    if (typeof data.ingredients === "string") {
-      // transforme en tableau puis join en string séparée par virgules
-      const arr = data.ingredients
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      ingredientsParsed = arr.join(", ");
-    } else if (Array.isArray(data.ingredients)) {
-      // join directement
-      ingredientsParsed = data.ingredients.join(", ");
-    }
-  }
+      // Normaliser ingredients en string
+      let ingredientsParsed: string | null = null;
+      if (data.ingredients) {
+        if (typeof data.ingredients === "string") {
+          const arr = data.ingredients
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          ingredientsParsed = arr.join(", ");
+        } else if (Array.isArray(data.ingredients)) {
+          ingredientsParsed = data.ingredients.map((s) => s.trim()).join(", ");
+        }
+      }
 
       const newDish = await prisma.dishes.create({
         data: {
@@ -105,7 +105,7 @@ export default async function handler(
           image: data.image || null,
           isAvailable: data.isAvailable,
           preparationTime: data.preparationTime || null,
-          ingredients: ingredientsParsed, // <-- ici string ou null
+          ingredients: ingredientsParsed, // toujours string ou null
           allergens: data.allergens || null,
           calories: data.calories || null,
           isVegetarian: data.isVegetarian,

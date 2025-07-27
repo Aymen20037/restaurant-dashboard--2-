@@ -42,12 +42,8 @@ async function getDish(req: AuthenticatedRequest, res: NextApiResponse, id: stri
       return res.status(404).json({ error: "Plat non trouvé" });
     }
 
-    // Convertir ingredients string en tableau
-    const ingredientsArray = dish.ingredients
-      ? dish.ingredients.split(",").map((i) => i.trim())
-      : [];
-
-    return res.status(200).json({ dish: { ...dish, ingredients: ingredientsArray } });
+    // Renvoyer `ingredients` tel quel (string ou null)
+    return res.status(200).json({ dish });
   } catch (error) {
     console.error("Erreur récupération plat:", error);
     return res.status(500).json({ error: "Erreur serveur" });
@@ -58,20 +54,20 @@ async function updateDish(req: AuthenticatedRequest, res: NextApiResponse, id: s
   try {
     const validatedData = updateDishSchema.parse(req.body);
 
-    // Forcer la conversion ingredients en string ou null
+    // Normaliser `ingredients` en string
     let ingredientsString: string | null | undefined = undefined;
     if (validatedData.ingredients !== undefined) {
       if (Array.isArray(validatedData.ingredients)) {
         ingredientsString = validatedData.ingredients.join(", ");
+      } else if (typeof validatedData.ingredients === "string") {
+        ingredientsString = validatedData.ingredients.trim() || null;
       } else {
-        ingredientsString = validatedData.ingredients || null;
+        ingredientsString = null;
       }
     }
 
-    // Construire l'objet de mise à jour sans le champ ingredients
     const { ingredients, ...rest } = validatedData;
 
-    // Créer data avec ingredients converti en string ou null
     const dataToUpdate = {
       ...rest,
       ...(ingredients !== undefined && { ingredients: ingredientsString }),
@@ -94,14 +90,9 @@ async function updateDish(req: AuthenticatedRequest, res: NextApiResponse, id: s
       include: { categories: true },
     });
 
-    // Convertir ingredients string en tableau avant de renvoyer
-    const ingredientsArray = updatedDish?.ingredients
-      ? updatedDish.ingredients.split(",").map((i) => i.trim())
-      : [];
-
     return res.status(200).json({
       message: "Plat mis à jour avec succès",
-      dish: { ...updatedDish, ingredients: ingredientsArray },
+      dish: updatedDish,
     });
   } catch (error) {
     console.error("Erreur mise à jour plat:", error);
