@@ -1,112 +1,137 @@
-import type { NextApiResponse } from "next"
-import { prisma } from "@/lib/prisma"
-import { withAuth, type AuthenticatedRequest } from "@/lib/middleware/auth"
-import { updateDishSchema } from "@/lib/validations/dish"
+import type { NextApiResponse } from "next";
+import { prisma } from "@/lib/prisma";
+import { withAuth, type AuthenticatedRequest } from "@/lib/middleware/auth";
+import { updateDishSchema } from "@/lib/validations/dish";
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
-  const { method } = req
-  const { id } = req.query
+  const { method } = req;
+  const { id } = req.query;
 
   if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "ID invalide" })
+    return res.status(400).json({ error: "ID invalide" });
   }
 
   switch (method) {
     case "GET":
-      return getDish(req, res, id)
+      return getDish(req, res, id);
     case "PUT":
-      return updateDish(req, res, id)
+      return updateDish(req, res, id);
     case "DELETE":
-      return deleteDish(req, res, id)
+      return deleteDish(req, res, id);
     default:
-      return res.status(405).json({ error: "Méthode non autorisée" })
+      return res.status(405).json({ error: "Méthode non autorisée" });
   }
 }
 
 async function getDish(req: AuthenticatedRequest, res: NextApiResponse, id: string) {
   try {
-    const dish = await prisma.dish.findFirst({
+    const dish = await prisma.dishes.findFirst({
       where: {
         id,
-        userId: req.user.userId,
+        userId: req.user?.userData.id,
       },
       include: {
-        category: true,
+        categories: true,
         _count: {
-          select: {
-            orderItems: true,
-          },
+          select: { order_items: true },
         },
       },
-    })
+    });
 
     if (!dish) {
-      return res.status(404).json({ error: "Plat non trouvé" })
+      return res.status(404).json({ error: "Plat non trouvé" });
     }
 
-    res.status(200).json({ dish })
+    // Convertir ingredients string en tableau
+    const ingredientsArray = dish.ingredients
+      ? dish.ingredients.split(",").map((i) => i.trim())
+      : [];
+
+    return res.status(200).json({ dish: { ...dish, ingredients: ingredientsArray } });
   } catch (error) {
-    console.error("Erreur récupération plat:", error)
-    res.status(500).json({ error: "Erreur serveur" })
+    console.error("Erreur récupération plat:", error);
+    return res.status(500).json({ error: "Erreur serveur" });
   }
 }
 
 async function updateDish(req: AuthenticatedRequest, res: NextApiResponse, id: string) {
   try {
-    const validatedData = updateDishSchema.parse(req.body)
+    const validatedData = updateDishSchema.parse(req.body);
 
-    const dish = await prisma.dish.updateMany({
+    // Forcer la conversion ingredients en string ou null
+    let ingredientsString: string | null | undefined = undefined;
+    if (validatedData.ingredients !== undefined) {
+      if (Array.isArray(validatedData.ingredients)) {
+        ingredientsString = validatedData.ingredients.join(", ");
+      } else {
+        ingredientsString = validatedData.ingredients || null;
+      }
+    }
+
+    // Construire l'objet de mise à jour sans le champ ingredients
+    const { ingredients, ...rest } = validatedData;
+
+    // Créer data avec ingredients converti en string ou null
+    const dataToUpdate = {
+      ...rest,
+      ...(ingredients !== undefined && { ingredients: ingredientsString }),
+    };
+
+    const result = await prisma.dishes.updateMany({
       where: {
         id,
-        userId: req.user.userId,
+        userId: req.user?.userData.id,
       },
-      data: validatedData,
-    })
+      data: dataToUpdate,
+    });
 
-    if (dish.count === 0) {
-      return res.status(404).json({ error: "Plat non trouvé" })
+    if (result.count === 0) {
+      return res.status(404).json({ error: "Plat non trouvé ou non autorisé" });
     }
 
-    const updatedDish = await prisma.dish.findUnique({
+    const updatedDish = await prisma.dishes.findUnique({
       where: { id },
-      include: {
-        category: true,
-      },
-    })
+      include: { categories: true },
+    });
 
-    res.status(200).json({
+    // Convertir ingredients string en tableau avant de renvoyer
+    const ingredientsArray = updatedDish?.ingredients
+      ? updatedDish.ingredients.split(",").map((i) => i.trim())
+      : [];
+
+    return res.status(200).json({
       message: "Plat mis à jour avec succès",
-      dish: updatedDish,
-    })
+      dish: { ...updatedDish, ingredients: ingredientsArray },
+    });
   } catch (error) {
-    console.error("Erreur mise à jour plat:", error)
-    if (error instanceof Error && error.message.includes("validation")) {
-      return res.status(400).json({ error: "Données invalides" })
+    console.error("Erreur mise à jour plat:", error);
+    if (error instanceof Error && error.name === "ZodError") {
+      return res.status(400).json({ error: "Données invalides", details: error.message });
     }
-    res.status(500).json({ error: "Erreur serveur" })
+    return res.status(500).json({ error: "Erreur serveur" });
   }
 }
 
 async function deleteDish(req: AuthenticatedRequest, res: NextApiResponse, id: string) {
   try {
-    const dish = await prisma.dish.deleteMany({
+    const result = await prisma.dishes.deleteMany({
       where: {
         id,
-        userId: req.user.userId,
+        userId: req.user?.userData.id,
       },
-    })
+    });
 
-    if (dish.count === 0) {
-      return res.status(404).json({ error: "Plat non trouvé" })
+    if (result.count === 0) {
+      return res.status(404).json({ error: "Plat non trouvé ou non autorisé" });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Plat supprimé avec succès",
-    })
+    });
   } catch (error) {
-    console.error("Erreur suppression plat:", error)
-    res.status(500).json({ error: "Erreur serveur" })
+    console.error("Erreur suppression plat:", error);
+    return res.status(500).json({ error: "Erreur serveur" });
   }
 }
 
-export default withAuth(handler)
+export default withAuth(handler);

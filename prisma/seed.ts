@@ -4,12 +4,12 @@ import bcrypt from "bcryptjs"
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log("🌱 Début du seeding...")
+  console.log(" Début du seeding...")
 
   // Créer un utilisateur admin
   const hashedPassword = await bcrypt.hash("admin123", 12)
 
-  const admin = await prisma.user.upsert({
+  const admin = await prisma.users.upsert({
     where: { email: "admin@droovo.com" },
     update: {},
     create: {
@@ -18,7 +18,6 @@ async function main() {
       name: "Admin Droovo",
       role: "ADMIN",
       restaurantName: "Restaurant Demo",
-      cuisine: "Française",
       description: "Restaurant de démonstration pour Droovo",
       phone: "+33123456789",
       address: "123 Rue de la Paix",
@@ -29,7 +28,7 @@ async function main() {
 
   // Créer des catégories
   const categories = await Promise.all([
-    prisma.category.upsert({
+    prisma.categories.upsert({
       where: { id: "cat-1" },
       update: {},
       create: {
@@ -38,7 +37,7 @@ async function main() {
         description: "Entrées fraîches et savoureuses",
       },
     }),
-    prisma.category.upsert({
+    prisma.categories.upsert({
       where: { id: "cat-2" },
       update: {},
       create: {
@@ -47,7 +46,7 @@ async function main() {
         description: "Nos spécialités principales",
       },
     }),
-    prisma.category.upsert({
+    prisma.categories.upsert({
       where: { id: "cat-3" },
       update: {},
       create: {
@@ -60,7 +59,7 @@ async function main() {
 
   // Créer des plats
   const dishes = await Promise.all([
-    prisma.dish.create({
+    prisma.dishes.create({
       data: {
         name: "Salade César",
         description: "Salade fraîche avec croûtons et parmesan",
@@ -72,7 +71,7 @@ async function main() {
         calories: 250,
       },
     }),
-    prisma.dish.create({
+    prisma.dishes.create({
       data: {
         name: "Burger Classique",
         description: "Burger avec steak, salade, tomate et frites",
@@ -83,7 +82,7 @@ async function main() {
         calories: 650,
       },
     }),
-    prisma.dish.create({
+    prisma.dishes.create({
       data: {
         name: "Tiramisu",
         description: "Tiramisu traditionnel italien",
@@ -99,7 +98,7 @@ async function main() {
 
   // Créer des clients
   const customers = await Promise.all([
-    prisma.customer.create({
+    prisma.customers.create({
       data: {
         email: "client1@example.com",
         name: "Marie Dupont",
@@ -108,7 +107,7 @@ async function main() {
         city: "Paris",
       },
     }),
-    prisma.customer.create({
+    prisma.customers.create({
       data: {
         email: "client2@example.com",
         name: "Pierre Martin",
@@ -121,7 +120,7 @@ async function main() {
 
   // Créer des commandes
   const orders = await Promise.all([
-    prisma.order.create({
+    prisma.orders.create({
       data: {
         orderNumber: "ORD-001",
         status: "DELIVERED",
@@ -130,7 +129,7 @@ async function main() {
         userId: admin.id,
         paymentMethod: "CARD",
         paymentStatus: "COMPLETED",
-        orderItems: {
+        order_items: {
           create: [
             {
               dishId: dishes[0].id,
@@ -146,7 +145,7 @@ async function main() {
         },
       },
     }),
-    prisma.order.create({
+    prisma.orders.create({
       data: {
         orderNumber: "ORD-002",
         status: "PREPARING",
@@ -155,7 +154,7 @@ async function main() {
         userId: admin.id,
         paymentMethod: "CASH",
         paymentStatus: "PENDING",
-        orderItems: {
+        order_items: {
           create: [
             {
               dishId: dishes[1].id,
@@ -175,7 +174,7 @@ async function main() {
 
   // Créer des avis
   await Promise.all([
-    prisma.review.create({
+    prisma.reviews.create({
       data: {
         rating: 5,
         comment: "Excellent restaurant, je recommande vivement !",
@@ -183,7 +182,7 @@ async function main() {
         userId: admin.id,
       },
     }),
-    prisma.review.create({
+    prisma.reviews.create({
       data: {
         rating: 4,
         comment: "Très bon, service rapide et plats délicieux.",

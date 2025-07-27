@@ -1,153 +1,228 @@
-import type { NextApiResponse } from "next"
+import type { NextApiRequest, NextApiResponse } from "next"
 import { prisma } from "@/lib/prisma"
-import { withAuth, type AuthenticatedRequest } from "@/lib/middleware/auth"
+import { Decimal } from "@prisma/client/runtime/library"
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Méthode non autorisée" })
-  }
+interface RevenusStats {
+  total: number
+  evolution: string
+}
 
+interface CommandesStats {
+  total: number
+  evolution: string
+}
+
+interface ClientsStats {
+  actifs: number
+  evolution: string
+}
+
+interface NoteMoyenneStats {
+  valeur: string
+  evolution: string
+}
+
+interface TopPlatsStats {
+  labels: string[]
+  data: number[]
+}
+
+interface SegmentationClientsStats {
+  nouveaux: number
+  regulier: number
+  vip: number
+}
+
+interface PerformanceStats {
+  tempsPreparationMoyen: number
+  tauxLivraison: string
+  panierMoyen: number
+}
+
+interface DashboardStats {
+  revenus: RevenusStats
+  commandes: CommandesStats
+  clients: ClientsStats
+  noteMoyenne: NoteMoyenneStats
+  ventesParMois: number[]
+  topPlats: TopPlatsStats
+  segmentationClients: SegmentationClientsStats
+  commandesParHeure: number[]
+  performance: PerformanceStats
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<DashboardStats | { error: string }>
+) {
   try {
-    const userId = req.user.userId
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59)
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
 
-    // Commandes ce mois
-    const ordersThisMonth = await prisma.order.count({
-      where: {
-        userId,
-        createdAt: {
-          gte: startOfMonth,
-        },
-      },
+    const revenusCeMoisRaw = await prisma.orders.aggregate({
+      _sum: { totalAmount: true },
+      where: { createdAt: { gte: startOfMonth }, paymentStatus: "COMPLETED" },
+    })
+    const revenusMoisDernierRaw = await prisma.orders.aggregate({
+      _sum: { totalAmount: true },
+      where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth }, paymentStatus: "COMPLETED" },
+    })
+    const revenusCeMois = Number(revenusCeMoisRaw._sum.totalAmount ?? 0)
+    const revenusMoisDernier = Number(revenusMoisDernierRaw._sum.totalAmount ?? 0)
+    const revenusEvolution = revenusMoisDernier > 0
+      ? ((revenusCeMois - revenusMoisDernier) / revenusMoisDernier) * 100
+      : 100
+
+    const commandesCeMois = await prisma.orders.count({
+      where: { createdAt: { gte: startOfMonth }, paymentStatus: "COMPLETED" },
+    })
+    const commandesMoisDernier = await prisma.orders.count({
+      where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth }, paymentStatus: "COMPLETED" },
+    })
+    const commandesEvolution = commandesMoisDernier > 0
+      ? ((commandesCeMois - commandesMoisDernier) / commandesMoisDernier) * 100
+      : 100
+
+    const clientsCeMois = await prisma.orders.findMany({
+      where: { createdAt: { gte: startOfMonth }, paymentStatus: "COMPLETED" },
+      distinct: ["customerId"],
+      select: { customerId: true },
+    })
+    const clientsMoisDernier = await prisma.orders.findMany({
+      where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth }, paymentStatus: "COMPLETED" },
+      distinct: ["customerId"],
+      select: { customerId: true },
+    })
+    const nbClientsCeMois = clientsCeMois.length
+    const nbClientsMoisDernier = clientsMoisDernier.length
+    const clientsEvolution = nbClientsMoisDernier > 0
+      ? ((nbClientsCeMois - nbClientsMoisDernier) / nbClientsMoisDernier) * 100
+      : 100
+
+    const reviewAvg = await prisma.reviews.aggregate({
+      _avg: { rating: true },
+      where: { isVisible: true },
+    })
+    const avgRating = reviewAvg._avg.rating ?? 0
+    const ratingEvolution = 0.2 
+
+    const ventesParMoisRaw = await prisma.$queryRaw<
+      { month: number; total: string }[]
+    >`
+      SELECT MONTH(createdAt) as month, SUM(totalAmount) as total
+      FROM \`Orders\`
+      WHERE createdAt >= ${startOfYear} AND createdAt <= ${endOfYear} AND paymentStatus = 'COMPLETED'
+      GROUP BY month
+      ORDER BY month
+    `
+    const ventesParMois = new Array(12).fill(0)
+    ventesParMoisRaw.forEach(({ month, total }) => {
+      ventesParMois[month - 1] = Number(total)
     })
 
-    const ordersLastMonth = await prisma.order.count({
-      where: {
-        userId,
-        createdAt: {
-          gte: startOfLastMonth,
-          lte: endOfLastMonth,
-        },
-      },
+    // Top plats commandés (top 6)
+    const topPlatsRaw = await prisma.order_items.groupBy({
+      by: ["dishId"],
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: "desc" } },
+      take: 6,
+    })
+    const dishIds = topPlatsRaw.map(t => t.dishId)
+    const dishes = await prisma.dishes.findMany({
+      where: { id: { in: dishIds } },
+      select: { id: true, name: true },
+    })
+    const topPlats = topPlatsRaw.map(tp => {
+      const dish = dishes.find(d => d.id === tp.dishId)
+      return {
+        name: dish?.name ?? "Inconnu",
+        quantity: tp._sum.quantity ?? 0,
+      }
     })
 
-    // Nouveaux clients
-    const newCustomersThisMonth = await prisma.customer.count({
+    const newClientsCount = await prisma.customers.count({
       where: {
-        createdAt: {
-          gte: startOfMonth,
-        },
         orders: {
-          some: {
-            userId,
-          },
+          some: { createdAt: { gte: startOfMonth } },
+          none: { createdAt: { lt: startOfMonth } },
         },
       },
     })
+    const clientsWithOrders = await prisma.customers.findMany({ include: { orders: true } })
+    const regularClientsCount = clientsWithOrders.filter(c => c.orders.length > 1).length
+    const vipClientsCount = clientsWithOrders.filter(c => c.orders.length > 5).length
 
-    const newCustomersLastMonth = await prisma.customer.count({
+    const ordersTodayRaw = await prisma.orders.findMany({
+      where: { createdAt: { gte: startOfToday, lte: endOfToday }, paymentStatus: "COMPLETED" },
+      select: { createdAt: true },
+    })
+    const commandesParHeure = new Array(24).fill(0)
+    ordersTodayRaw.forEach(order => {
+      commandesParHeure[order.createdAt.getHours()]++
+    })
+
+    const avgPrepTime = await prisma.dishes.aggregate({
+      _avg: { preparationTime: true },
+    })
+
+    const totalDelivered = await prisma.orders.count({ where: { status: "DELIVERED" } })
+    const onTimeDelivered = await prisma.orders.count({
       where: {
-        createdAt: {
-          gte: startOfLastMonth,
-          lte: endOfLastMonth,
-        },
-        orders: {
-          some: {
-            userId,
-          },
-        },
+        status: "DELIVERED",
+       
       },
     })
+    const deliveryRate = totalDelivered > 0 ? (onTimeDelivered / totalDelivered) * 100 : 0
 
-    // Plats commandés
-    const dishesOrderedThisMonth = await prisma.orderItem.aggregate({
-      where: {
-        order: {
-          userId,
-          createdAt: {
-            gte: startOfMonth,
-          },
-        },
-      },
-      _sum: {
-        quantity: true,
-      },
+    const avgPanier = await prisma.orders.aggregate({
+      _avg: { totalAmount: true },
+      where: { paymentStatus: "COMPLETED" },
     })
 
-    const dishesOrderedLastMonth = await prisma.orderItem.aggregate({
-      where: {
-        order: {
-          userId,
-          createdAt: {
-            gte: startOfLastMonth,
-            lte: endOfLastMonth,
-          },
-        },
+    const response: DashboardStats = {
+      revenus: {
+        total: revenusCeMois,
+        evolution: revenusEvolution.toFixed(1),
       },
-      _sum: {
-        quantity: true,
+      commandes: {
+        total: commandesCeMois,
+        evolution: commandesEvolution.toFixed(1),
       },
-    })
-
-    // Taux de satisfaction
-    const reviews = await prisma.review.aggregate({
-      where: {
-        userId,
-        createdAt: {
-          gte: startOfMonth,
-        },
+      clients: {
+        actifs: nbClientsCeMois,
+        evolution: clientsEvolution.toFixed(1),
       },
-      _avg: {
-        rating: true,
+      noteMoyenne: {
+        valeur: avgRating.toFixed(1),
+        evolution: ratingEvolution.toFixed(1),
       },
-      _count: true,
-    })
-
-    const reviewsLastMonth = await prisma.review.aggregate({
-      where: {
-        userId,
-        createdAt: {
-          gte: startOfLastMonth,
-          lte: endOfLastMonth,
-        },
+      ventesParMois,
+      topPlats: {
+        labels: topPlats.map(p => p.name),
+        data: topPlats.map(p => p.quantity),
       },
-      _avg: {
-        rating: true,
+      segmentationClients: {
+        nouveaux: newClientsCount,
+        regulier: regularClientsCount,
+        vip: vipClientsCount,
       },
-    })
-
-    // Calcul des pourcentages de changement
-    const calculateChange = (current: number, previous: number) => {
-      if (previous === 0) return current > 0 ? 100 : 0
-      return ((current - previous) / previous) * 100
+      commandesParHeure: commandesParHeure.slice(8, 23), 
+      performance: {
+        tempsPreparationMoyen: avgPrepTime._avg.preparationTime ?? 0,
+        tauxLivraison: deliveryRate.toFixed(0),
+        panierMoyen: avgPanier._avg.totalAmount instanceof Decimal ? avgPanier._avg.totalAmount.toNumber() : 0,
+      },
     }
 
-    res.status(200).json({
-      ordersThisMonth: {
-        value: ordersThisMonth,
-        change: calculateChange(ordersThisMonth, ordersLastMonth),
-      },
-      newCustomers: {
-        value: newCustomersThisMonth,
-        change: calculateChange(newCustomersThisMonth, newCustomersLastMonth),
-      },
-      dishesOrdered: {
-        value: dishesOrderedThisMonth._sum.quantity || 0,
-        change: calculateChange(dishesOrderedThisMonth._sum.quantity || 0, dishesOrderedLastMonth._sum.quantity || 0),
-      },
-      satisfaction: {
-        value: reviews._avg.rating ? Math.round(reviews._avg.rating * 100) / 100 : 0,
-        change: calculateChange(reviews._avg.rating || 0, reviewsLastMonth._avg.rating || 0),
-        count: reviews._count,
-      },
-    })
+    return res.status(200).json(response)
   } catch (error) {
-    console.error("Erreur récupération statistiques:", error)
-    res.status(500).json({ error: "Erreur serveur" })
+    console.error(error)
+    return res.status(500).json({ error: "Erreur serveur" })
   }
 }
-
-export default withAuth(handler)

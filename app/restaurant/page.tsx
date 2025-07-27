@@ -1,50 +1,138 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Camera, Edit, Save, MapPin, Clock, Star, Users, Award } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Sidebar } from "../components/sidebar"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Camera, Edit, Save, MapPin, Clock, Star, Users, Award } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Sidebar } from "../components/sidebar";
+
+type RestaurantData = {
+  restaurantName: string;
+  description: string;
+  address: string;
+  phone: string;
+  email: string;
+  hours: string;
+  logo?: string; 
+
+  isOpen: boolean;
+  deliveryRadius: string;
+  minimumOrder: string;
+};
 
 export default function RestaurantPage() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
-  const [restaurantData, setRestaurantData] = useState({
-    name: "Le Marrakchi",
-    description: "Restaurant traditionnel marocain offrant une cuisine authentique dans une ambiance chaleureuse.",
-    address: "123 Avenue Mohammed V, Casablanca",
-    phone: "+212 522 123 456",
-    email: "contact@lemarrakchi.ma",
-    hours: "11h00 - 23h00",
+  const [isSidebarOpen] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [restaurantData, setRestaurantData] = useState<RestaurantData>({
+    restaurantName: "",
+    description: "",
+    address: "",
+    phone: "",
+    email: "",
+    hours: "",
     isOpen: true,
-    deliveryRadius: "5 km",
-    minimumOrder: "80 DH",
-  })
+    logo: "", 
+    deliveryRadius: "",
+    minimumOrder: "",
+  });
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  const stats = [
-    { label: "Note moyenne", value: "4.8", icon: Star, color: "text-yellow-500" },
-    { label: "Commandes totales", value: "2,847", icon: Users, color: "text-purple-500" },
-    { label: "Clients fidèles", value: "456", icon: Award, color: "text-orange-500" },
-  ]
+  useEffect(() => {
+    const fetchRestaurantData = async () => {
+      try {
+        const response = await fetch("/api/restaurant", {
+          method: "GET",
+          credentials: "include",
+        });
+  
+        const data = await response.json();
+  
+        if (response.ok) {
+          setRestaurantData(data);
+        } else {
+          setError(data.error || "Erreur de récupération des données.");
+          router.push("/login");
+        }
+      } catch (err) {
+        console.error("Erreur lors de la récupération des données:", err);
+        setError("Une erreur est survenue lors de la récupération des données.");
+        router.push("/login");
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+  
+    fetchRestaurantData();
+  }, [router]);
+  
+  const handleSave = async () => {
+    const requiredFields: (keyof RestaurantData)[] = [
+      "restaurantName",
+      "phone",
+      "email",
+      "address",
+      "hours",
+      "deliveryRadius",
+      "minimumOrder",
+      "logo"
+    ];
+
+    for (const field of requiredFields) {
+      if (!restaurantData[field]) {
+        setError(`Le champ "${field}" est obligatoire.`);
+        return;
+      }
+    }
+
+    try {
+      const response = await fetch("/api/restaurant", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(restaurantData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert("Restaurant mis à jour avec succès !");
+        setIsEditing(false);
+      } else {
+        setError(data.error || "Erreur lors de la mise à jour des données.");
+      }
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde:", err);
+      setError("Une erreur est survenue lors de la sauvegarde des données.");
+    }
+  };
+
+ 
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50">
       <Sidebar isOpen={isSidebarOpen} />
 
       <div className="flex-1">
-        {/* Header */}
         <header className="sticky top-0 z-10 bg-droovo-gradient shadow-lg">
           <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
             <h1 className="text-xl font-bold text-white">Mon Restaurant</h1>
             <div className="ml-auto">
               <Button
-                onClick={() => setIsEditing(!isEditing)}
+                onClick={() => {
+                  if (isEditing) handleSave();
+                  setIsEditing(!isEditing);
+                }}
                 className="bg-white/20 hover:bg-white/30 text-white"
                 variant="outline"
               >
@@ -56,25 +144,12 @@ export default function RestaurantPage() {
         </header>
 
         <main className="p-6 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            {stats.map((stat, index) => (
-              <Card key={index} className="border-0 shadow-lg">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">{stat.label}</p>
-                      <p className="text-2xl font-bold">{stat.value}</p>
-                    </div>
-                    <stat.icon className={`h-8 w-8 ${stat.color}`} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+     
+
+          {error && <div className="text-red-500 bg-red-100 p-3 rounded-md">{error}</div>}
 
           <div className="grid gap-6 lg:grid-cols-3">
-            {/* Restaurant Profile */}
+            {/* Formulaire d'informations */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="border-0 shadow-lg">
                 <CardHeader>
@@ -84,12 +159,14 @@ export default function RestaurantPage() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <Label htmlFor="name">Nom du restaurant</Label>
+                      <Label htmlFor="restaurantName">Nom du restaurant</Label>
                       <Input
-                        id="name"
-                        value={restaurantData.name}
+                        id="restaurantName"
+                        value={restaurantData.restaurantName}
                         disabled={!isEditing}
-                        onChange={(e) => setRestaurantData({ ...restaurantData, name: e.target.value })}
+                        onChange={(e) =>
+                          setRestaurantData({ ...restaurantData, restaurantName: e.target.value })
+                        }
                       />
                     </div>
                     <div>
@@ -98,7 +175,9 @@ export default function RestaurantPage() {
                         id="phone"
                         value={restaurantData.phone}
                         disabled={!isEditing}
-                        onChange={(e) => setRestaurantData({ ...restaurantData, phone: e.target.value })}
+                        onChange={(e) =>
+                          setRestaurantData({ ...restaurantData, phone: e.target.value })
+                        }
                       />
                     </div>
                   </div>
@@ -109,7 +188,9 @@ export default function RestaurantPage() {
                       id="description"
                       value={restaurantData.description}
                       disabled={!isEditing}
-                      onChange={(e) => setRestaurantData({ ...restaurantData, description: e.target.value })}
+                      onChange={(e) =>
+                        setRestaurantData({ ...restaurantData, description: e.target.value })
+                      }
                       rows={3}
                     />
                   </div>
@@ -120,7 +201,9 @@ export default function RestaurantPage() {
                       id="address"
                       value={restaurantData.address}
                       disabled={!isEditing}
-                      onChange={(e) => setRestaurantData({ ...restaurantData, address: e.target.value })}
+                      onChange={(e) =>
+                        setRestaurantData({ ...restaurantData, address: e.target.value })
+                      }
                     />
                   </div>
 
@@ -132,7 +215,9 @@ export default function RestaurantPage() {
                         type="email"
                         value={restaurantData.email}
                         disabled={!isEditing}
-                        onChange={(e) => setRestaurantData({ ...restaurantData, email: e.target.value })}
+                        onChange={(e) =>
+                          setRestaurantData({ ...restaurantData, email: e.target.value })
+                        }
                       />
                     </div>
                     <div>
@@ -141,14 +226,15 @@ export default function RestaurantPage() {
                         id="hours"
                         value={restaurantData.hours}
                         disabled={!isEditing}
-                        onChange={(e) => setRestaurantData({ ...restaurantData, hours: e.target.value })}
+                        onChange={(e) =>
+                          setRestaurantData({ ...restaurantData, hours: e.target.value })
+                        }
                       />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Delivery Settings */}
               <Card className="border-0 shadow-lg">
                 <CardHeader>
                   <CardTitle>Paramètres de livraison</CardTitle>
@@ -163,7 +249,9 @@ export default function RestaurantPage() {
                     <Switch
                       id="isOpen"
                       checked={restaurantData.isOpen}
-                      onCheckedChange={(checked) => setRestaurantData({ ...restaurantData, isOpen: checked })}
+                      onCheckedChange={(checked) =>
+                        setRestaurantData({ ...restaurantData, isOpen: checked })
+                      }
                     />
                   </div>
 
@@ -174,7 +262,9 @@ export default function RestaurantPage() {
                         id="radius"
                         value={restaurantData.deliveryRadius}
                         disabled={!isEditing}
-                        onChange={(e) => setRestaurantData({ ...restaurantData, deliveryRadius: e.target.value })}
+                        onChange={(e) =>
+                          setRestaurantData({ ...restaurantData, deliveryRadius: e.target.value })
+                        }
                       />
                     </div>
                     <div>
@@ -183,7 +273,9 @@ export default function RestaurantPage() {
                         id="minimum"
                         value={restaurantData.minimumOrder}
                         disabled={!isEditing}
-                        onChange={(e) => setRestaurantData({ ...restaurantData, minimumOrder: e.target.value })}
+                        onChange={(e) =>
+                          setRestaurantData({ ...restaurantData, minimumOrder: e.target.value })
+                        }
                       />
                     </div>
                   </div>
@@ -191,7 +283,7 @@ export default function RestaurantPage() {
               </Card>
             </div>
 
-            {/* Restaurant Image */}
+            {/* Statut + Image */}
             <div className="space-y-6">
               <Card className="border-0 shadow-lg">
                 <CardHeader>
@@ -202,15 +294,45 @@ export default function RestaurantPage() {
                   <div className="relative">
                     <div className="aspect-square rounded-lg bg-gradient-to-br from-purple-100 to-orange-100 flex items-center justify-center">
                       <Avatar className="h-32 w-32">
-                        <AvatarImage src="/placeholder.svg" alt="Restaurant" />
-                        <AvatarFallback className="text-2xl bg-droovo-gradient text-white">LM</AvatarFallback>
+                      <AvatarImage src={restaurantData.logo || "/placeholder.svg"} alt="Restaurant" />
+                      <AvatarFallback className="text-2xl bg-droovo-gradient text-white">LM</AvatarFallback>
                       </Avatar>
                     </div>
                     {isEditing && (
-                      <Button size="icon" className="absolute bottom-2 right-2 bg-droovo-gradient hover:opacity-90">
-                        <Camera className="h-4 w-4" />
-                      </Button>
-                    )}
+  <>
+    <input
+      id="file-upload"
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result?.toString();
+          if (base64) {
+            setRestaurantData((prev) => ({
+              ...prev,
+              logo: base64,
+            }));
+          }
+        };
+        reader.readAsDataURL(file);
+      }}
+    />
+    <Button
+      type="button"
+      size="icon"
+      className="absolute bottom-2 right-2 bg-droovo-gradient hover:opacity-90"
+      onClick={() => document.getElementById("file-upload")?.click()}
+    >
+      <Camera className="h-4 w-4" />
+    </Button>
+  </>
+)}
+
                   </div>
                 </CardContent>
               </Card>
@@ -243,5 +365,5 @@ export default function RestaurantPage() {
         </main>
       </div>
     </div>
-  )
+  );
 }

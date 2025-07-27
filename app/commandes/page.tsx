@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Search, Eye, Check, X, Clock, MapPin, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,89 +18,68 @@ import {
 } from "@/components/ui/dialog"
 import { Sidebar } from "../components/sidebar"
 import { cn } from "@/lib/utils"
+import { OrderStatus } from "@prisma/client"
+
+
+export type Order = {
+  id: string
+  orderNumber: string
+  client: string
+  phone: string | null
+  address: string | null
+  totalAmount: number
+  createdAt: string
+  deliveryTime: string | null
+  status: OrderStatus
+  items: { name: string; price: number; quantity: number }[]
+}
 
 export default function CommandesPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [orders, setOrders] = useState<Order[] | null>(null)
 
-  const orders = [
-    {
-      id: "ORD-7352",
-      client: "Mohammed Alami",
-      phone: "+212 661 234 567",
-      address: "Rue Al Massira, Casablanca",
-      items: [
-        { name: "Tajine Poulet", quantity: 1, price: 120 },
-        { name: "Salade Marocaine", quantity: 1, price: 35 },
-      ],
-      total: 155,
-      status: "en attente",
-      time: "14:30",
-      date: "2023-05-28",
-      estimatedDelivery: "15:00",
-    },
-    {
-      id: "ORD-7353",
-      client: "Fatima Benali",
-      phone: "+212 662 345 678",
-      address: "Avenue Hassan II, Casablanca",
-      items: [
-        { name: "Couscous Royal", quantity: 2, price: 150 },
-        { name: "Thé à la menthe", quantity: 2, price: 20 },
-      ],
-      total: 320,
-      status: "confirmé",
-      time: "14:45",
-      date: "2023-05-28",
-      estimatedDelivery: "15:30",
-    },
-    {
-      id: "ORD-7354",
-      client: "Karim Idrissi",
-      phone: "+212 663 456 789",
-      address: "Quartier Maarif, Casablanca",
-      items: [{ name: "Pastilla au Poulet", quantity: 1, price: 130 }],
-      total: 130,
-      status: "en préparation",
-      time: "15:00",
-      date: "2023-05-28",
-      estimatedDelivery: "15:45",
-    },
-    {
-      id: "ORD-7355",
-      client: "Leila Mansouri",
-      phone: "+212 664 567 890",
-      address: "Ain Diab, Casablanca",
-      items: [
-        { name: "Rfissa", quantity: 1, price: 140 },
-        { name: "Jus d'orange", quantity: 2, price: 30 },
-      ],
-      total: 170,
-      status: "livré",
-      time: "13:15",
-      date: "2023-05-28",
-      estimatedDelivery: "14:00",
-    },
-  ]
+  useEffect(() => {
+    fetch("/api/orders")
+      .then((res) => res.json())
+      .then(setOrders)
+      .catch(console.error)
+  }, [])
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "en attente":
-        return "bg-yellow-500 hover:bg-yellow-600"
-      case "confirmé":
-        return "bg-blue-500 hover:bg-blue-600"
-      case "en préparation":
-        return "bg-orange-500 hover:bg-orange-600"
-      case "livré":
-        return "bg-green-500 hover:bg-green-600"
-      case "annulé":
-        return "bg-red-500 hover:bg-red-600"
-      default:
-        return "bg-gray-500 hover:bg-gray-600"
+  const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+      const updated = await res.json()
+      setOrders((prev) =>
+        prev ? prev.map((order) => (order.id === id ? { ...order, status: updated.status } : order)) : null
+      )
+    } catch (err) {
+      console.error("Erreur de mise à jour:", err)
     }
   }
 
+  function getStatusLabel(status: OrderStatus) {
+    switch (status) {
+      case OrderStatus.PENDING:
+        return "en attente"
+      case OrderStatus.CONFIRMED:
+        return "confirmé"
+      case OrderStatus.PREPARING:
+        return "en préparation"
+      case OrderStatus.DELIVERED:
+        return "livré"
+      case OrderStatus.CANCELLED:
+        return "annulé"
+      default:
+        return status
+    }
+  }
+  
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "en attente":
@@ -118,18 +97,18 @@ export default function CommandesPage() {
     }
   }
 
-  const filteredOrders = orders.filter((order) => {
+  const filteredOrders = orders?.filter((order) => {
     const matchesSearch =
       order.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase())
+      order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
     return matchesSearch && matchesStatus
-  })
+  }) ?? []
+  
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50">
       <Sidebar isOpen={isSidebarOpen} />
-
       <div className="flex-1">
         {/* Header */}
         <header className="sticky top-0 z-10 bg-droovo-gradient shadow-lg">
@@ -138,7 +117,6 @@ export default function CommandesPage() {
             <Badge className="bg-white/20 text-white">{filteredOrders.length} commandes</Badge>
           </div>
         </header>
-
         <main className="p-6 space-y-6">
           {/* Filters */}
           <Card className="border-0 shadow-lg">
@@ -158,13 +136,14 @@ export default function CommandesPage() {
                     <SelectValue placeholder="Filtrer par statut" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tous les statuts</SelectItem>
-                    <SelectItem value="en attente">En attente</SelectItem>
-                    <SelectItem value="confirmé">Confirmé</SelectItem>
-                    <SelectItem value="en préparation">En préparation</SelectItem>
-                    <SelectItem value="livré">Livré</SelectItem>
-                    <SelectItem value="annulé">Annulé</SelectItem>
-                  </SelectContent>
+  <SelectItem value="all">Tous les statuts</SelectItem>
+  <SelectItem value={OrderStatus.PENDING}>En attente</SelectItem>
+  <SelectItem value={OrderStatus.CONFIRMED}>Confirmé</SelectItem>
+  <SelectItem value={OrderStatus.PREPARING}>En préparation</SelectItem>
+  <SelectItem value={OrderStatus.DELIVERED}>Livré</SelectItem>
+  <SelectItem value={OrderStatus.CANCELLED}>Annulé</SelectItem>
+</SelectContent>
+
                 </Select>
               </div>
             </CardContent>
@@ -189,19 +168,20 @@ export default function CommandesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order) => (
+                {orders && filteredOrders.map((order) => (
+
                     <TableRow key={order.id} className="hover:bg-purple-50">
-                      <TableCell className="font-medium text-purple-600">{order.id}</TableCell>
+                      <TableCell className="font-medium text-purple-600">{order.orderNumber}</TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium">{order.client}</p>
                           <p className="text-sm text-gray-500">{order.phone}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold">{order.total} DH</TableCell>
-                      <TableCell>{order.time}</TableCell>
+                      <TableCell className="font-semibold">{order.totalAmount} DH</TableCell>
+                      <TableCell>{new Date(order.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</TableCell>
                       <TableCell>
-                        <Badge className={cn("text-white flex items-center gap-1 w-fit", getStatusColor(order.status))}>
+                        <Badge className={cn("text-white flex items-center gap-1 w-fit", getStatusIcon(order.status))}>
                           {getStatusIcon(order.status)}
                           {order.status}
                         </Badge>
@@ -216,9 +196,9 @@ export default function CommandesPage() {
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl">
                               <DialogHeader>
-                                <DialogTitle>Détails de la commande {order.id}</DialogTitle>
+                                <DialogTitle>Détails de la commande {order.orderNumber}</DialogTitle>
                                 <DialogDescription>
-                                  Commande passée le {new Date(order.date).toLocaleDateString("fr-FR")} à {order.time}
+                                  Commande passée le {new Date(order.createdAt).toLocaleDateString("fr-FR")} à {new Date(order.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
@@ -226,31 +206,16 @@ export default function CommandesPage() {
                                   <div>
                                     <h4 className="font-semibold mb-2">Informations client</h4>
                                     <div className="space-y-1 text-sm">
-                                      <p>
-                                        <strong>Nom:</strong> {order.client}
-                                      </p>
-                                      <p className="flex items-center gap-1">
-                                        <Phone className="h-3 w-3" />
-                                        {order.phone}
-                                      </p>
-                                      <p className="flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />
-                                        {order.address}
-                                      </p>
+                                      <p><strong>Nom:</strong> {order.client}</p>
+                                      <p className="flex items-center gap-1"><Phone className="h-3 w-3" />{order.phone}</p>
+                                      <p className="flex items-center gap-1"><MapPin className="h-3 w-3" />{order.address}</p>
                                     </div>
                                   </div>
                                   <div>
                                     <h4 className="font-semibold mb-2">Livraison</h4>
                                     <div className="space-y-1 text-sm">
-                                      <p>
-                                        <strong>Heure estimée:</strong> {order.estimatedDelivery}
-                                      </p>
-                                      <p>
-                                        <strong>Statut:</strong>
-                                        <Badge className={cn("ml-2 text-white", getStatusColor(order.status))}>
-                                          {order.status}
-                                        </Badge>
-                                      </p>
+                                      <p><strong>Heure estimée:</strong> {order.deliveryTime}</p>
+                                      <p><strong>Statut:</strong> <Badge className={cn("ml-2 text-white", getStatusIcon(order.status))}>{order.status}</Badge></p>
                                     </div>
                                   </div>
                                 </div>
@@ -259,49 +224,59 @@ export default function CommandesPage() {
                                   <h4 className="font-semibold mb-2">Articles commandés</h4>
                                   <div className="space-y-2">
                                     {order.items.map((item, index) => (
-                                      <div
-                                        key={index}
-                                        className="flex justify-between items-center p-2 bg-gray-50 rounded"
-                                      >
-                                        <span>
-                                          {item.quantity}x {item.name}
-                                        </span>
+                                      <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                        <span>{item.quantity}x {item.name}</span>
                                         <span className="font-semibold">{item.price} DH</span>
                                       </div>
                                     ))}
                                     <div className="flex justify-between items-center p-2 bg-purple-100 rounded font-semibold">
                                       <span>Total</span>
-                                      <span>{order.total} DH</span>
+                                      <span>{order.totalAmount} DH</span>
                                     </div>
                                   </div>
                                 </div>
 
                                 <div className="flex gap-2 pt-4">
-                                  {order.status === "en attente" && (
-                                    <>
-                                      <Button className="bg-green-500 hover:bg-green-600">
-                                        <Check className="mr-2 h-4 w-4" />
-                                        Confirmer
-                                      </Button>
-                                      <Button variant="destructive">
-                                        <X className="mr-2 h-4 w-4" />
-                                        Refuser
-                                      </Button>
-                                    </>
-                                  )}
-                                  {order.status === "confirmé" && (
-                                    <Button className="bg-orange-500 hover:bg-orange-600">
-                                      <Clock className="mr-2 h-4 w-4" />
-                                      Marquer en préparation
-                                    </Button>
-                                  )}
-                                  {order.status === "en préparation" && (
-                                    <Button className="bg-blue-500 hover:bg-blue-600">
-                                      <Check className="mr-2 h-4 w-4" />
-                                      Marquer comme livré
-                                    </Button>
-                                  )}
-                                </div>
+  {order.status === OrderStatus.PENDING && (
+    <>
+      <Button
+        className="bg-green-500 hover:bg-green-600"
+        onClick={() => updateOrderStatus(order.id, OrderStatus.CONFIRMED)}
+      >
+        <Check className="mr-2 h-4 w-4" />
+        Confirmer
+      </Button>
+      <Button
+        variant="destructive"
+        onClick={() => updateOrderStatus(order.id, OrderStatus.CANCELLED)}
+      >
+        <X className="mr-2 h-4 w-4" />
+        Refuser
+      </Button>
+    </>
+  )}
+
+  {order.status === OrderStatus.CONFIRMED && (
+    <Button
+      className="bg-orange-500 hover:bg-orange-600"
+      onClick={() => updateOrderStatus(order.id, OrderStatus.PREPARING)}
+    >
+      <Clock className="mr-2 h-4 w-4" />
+      Marquer en préparation
+    </Button>
+  )}
+
+  {order.status === OrderStatus.PREPARING && (
+    <Button
+      className="bg-blue-500 hover:bg-blue-600"
+      onClick={() => updateOrderStatus(order.id, OrderStatus.DELIVERED)}
+    >
+      <Check className="mr-2 h-4 w-4" />
+      Marquer comme livré
+    </Button>
+  )}
+</div>
+
                               </div>
                             </DialogContent>
                           </Dialog>

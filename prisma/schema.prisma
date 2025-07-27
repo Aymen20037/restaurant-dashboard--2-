@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,232 +7,376 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  password    String
-  name        String
-  phone       String?
-  address     String?
-  city        String?
-  postalCode  String?
+model users {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  password       String
+  name           String
+  phone          String?
+  address        String?
+  city           String?
+  postalCode     String?
   restaurantName String?
-  cuisine     String?
-  description String?  @db.Text
-  logo        String?
-  isActive    Boolean  @default(true)
-  role        Role     @default(RESTAURANT)
+  description    String?          @db.Text
+  logo           String?
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deliveryRadius String?
+  hours          String?
+  isOpen         Boolean          @default(true)
+  minimumOrder   Decimal?         @db.Decimal(10, 2)
+  role           Role             @default(RESTAURANT)
+  security       String?          @db.LongText
+  customMessage  String?
+  campagnes      campagnes[]
+  customers      customers[]
+  dishes         dishes[]
+  legalDocuments legaldocuments[]
+  orders         orders[]
+  payments       payments[]
+  promotions     promotions[]
+  reservations   reservations[]
+  reviews        reviews[]
+  sessions       sessions[]
+  userRoles      user_roles[]
+  notifications  notifications[] // <- Relation avec notifications
+  cuisine        cuisine[]        @relation("usercuisines")
+}
+
+model cuisine {
+  id    String  @id @default(cuid())
+  name  String  @unique
+  users users[] @relation("usercuisines")
+}
+
+model customers {
+  id                   String                 @id @default(cuid())
+  email                String                 @unique
+  password             String?
+  name                 String
+  phone                String?
+  address              String?
+  city                 String?
+  isActive             Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  userId               String?
+  user                 users?                 @relation(fields: [userId], references: [id])
+  orders               orders[]
+  reservations         reservations[]
+  reviews              reviews[]
+  sessions             sessions[]
+  loyalty_points       loyalty_points[]
+  loyalty_transactions loyalty_transactions[]
+  notifications        notifications[] // <- Relation avec notifications
+
+  @@index([userId], map: "customers_userId_fkey")
+}
+
+model sessions {
+  id         String     @id @default(cuid())
+  sessionId  String     @unique
+  userId     String?
+  customerId String?
+  data       String     @db.LongText
+  expiresAt  DateTime
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  customer   customers? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user       users?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@index([customerId], map: "sessions_customerId_fkey")
+  @@index([userId], map: "sessions_userId_fkey")
+}
+
+model roles {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  permissions Json // <-- Remplace String? par Json
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userRoles   user_roles[]
+}
+
+model user_roles {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+  role   roles  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   users  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([roleId], map: "user_roles_roleId_fkey")
+}
+
+model notifications {
+  id         String   @id @default(cuid())
+  title      String
+  message    String
+  type       String // exemple: "order", "promotion", "system"
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  customerId String?
+  userId     String?
+
+  customer customers? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user     users?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([userId])
+}
+
+model permissions {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  resource    String
+  action      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
-  orders      Order[]
-  dishes      Dish[]
-  promotions  Promotion[]
-  reviews     Review[]
-  reservations Reservation[]
-  payments    Payment[]
-
-  @@map("users")
+  @@unique([resource, action])
 }
 
-model Customer {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  phone     String?
-  address   String?
-  city      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  orders       Order[]
-  reviews      Review[]
-  reservations Reservation[]
-
-  @@map("customers")
-}
-
-model Category {
+model categories {
   id          String   @id @default(cuid())
-  name        String
+  name        String   @unique
   description String?
   image       String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  // Relations
-  dishes Dish[]
-
-  @@map("categories")
+  dishes      dishes[]
 }
 
-model Dish {
-  id          String   @id @default(cuid())
-  name        String
-  description String?  @db.Text
-  price       Decimal  @db.Decimal(10, 2)
-  image       String?
-  isAvailable Boolean  @default(true)
-  preparationTime Int? // en minutes
-  ingredients String?  @db.Text
-  allergens   String?
-  calories    Int?
-  isVegetarian Boolean @default(false)
-  isVegan     Boolean @default(false)
-  isGlutenFree Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model dishes {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?       @db.Text
+  price           Float
+  image           String?
+  isAvailable     Boolean       @default(true)
+  preparationTime Int?
+  ingredients     String?       @db.LongText
+  allergens       String?
+  calories        Int?
+  isVegetarian    Boolean       @default(false)
+  isVegan         Boolean       @default(false)
+  isGlutenFree    Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  categoryId      String
+  userId          String
+  categories      categories    @relation(fields: [categoryId], references: [id])
+  users           users         @relation(fields: [userId], references: [id])
+  order_items     order_items[]
 
-  // Foreign Keys
-  categoryId  String
-  userId      String
-
-  // Relations
-  category    Category @relation(fields: [categoryId], references: [id])
-  user        User     @relation(fields: [userId], references: [id])
-  orderItems  OrderItem[]
-
-  @@map("dishes")
+  @@index([categoryId], map: "dishes_categoryId_fkey")
+  @@index([userId], map: "dishes_userId_fkey")
 }
 
-model Order {
-  id            String      @id @default(cuid())
-  orderNumber   String      @unique
-  status        OrderStatus @default(PENDING)
-  totalAmount   Decimal     @db.Decimal(10, 2)
-  deliveryFee   Decimal?    @db.Decimal(10, 2)
-  tax           Decimal?    @db.Decimal(10, 2)
-  discount      Decimal?    @db.Decimal(10, 2)
+model orders {
+  id              String         @id @default(cuid())
+  orderNumber     String         @unique
+  status          OrderStatus    @default(PENDING)
+  totalAmount     Decimal        @db.Decimal(10, 2)
+  deliveryFee     Decimal?       @db.Decimal(10, 2)
+  tax             Decimal?       @db.Decimal(10, 2)
+  discount        Decimal?       @db.Decimal(10, 2)
   deliveryAddress String?
-  deliveryTime  DateTime?
-  notes         String?     @db.Text
-  paymentMethod PaymentMethod?
-  paymentStatus PaymentStatus @default(PENDING)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  deliveryTime    DateTime?
+  notes           String?        @db.Text
+  paymentMethod   PaymentMethod?
+  paymentStatus   PaymentStatus  @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  customerId      String
+  userId          String
+  order_items     order_items[]
+  customers       customers      @relation(fields: [customerId], references: [id])
+  users           users          @relation(fields: [userId], references: [id])
+  payments        payments?
 
-  // Foreign Keys
-  customerId    String
-  userId        String
-
-  // Relations
-  customer      Customer    @relation(fields: [customerId], references: [id])
-  user          User        @relation(fields: [userId], references: [id])
-  orderItems    OrderItem[]
-  payment       Payment?
-
-  @@map("orders")
+  @@index([customerId], map: "orders_customerId_fkey")
+  @@index([userId], map: "orders_userId_fkey")
 }
 
-model OrderItem {
-  id        String  @id @default(cuid())
-  quantity  Int
-  price     Decimal @db.Decimal(10, 2)
-  notes     String?
+model order_items {
+  id       String  @id @default(cuid())
+  quantity Int
+  price    Decimal @db.Decimal(10, 2)
+  notes    String?
+  orderId  String
+  dishId   String
+  dishes   dishes  @relation(fields: [dishId], references: [id])
+  orders   orders  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  // Foreign Keys
-  orderId   String
-  dishId    String
-
-  // Relations
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  dish      Dish    @relation(fields: [dishId], references: [id])
-
-  @@map("order_items")
+  @@index([dishId], map: "order_items_dishId_fkey")
+  @@index([orderId], map: "order_items_orderId_fkey")
 }
 
-model Review {
-  id        String   @id @default(cuid())
-  rating    Int      // 1-5 étoiles
-  comment   String?  @db.Text
-  isVisible Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Foreign Keys
+model reviews {
+  id         String    @id @default(cuid())
+  rating     Int
+  comment    String?   @db.Text
+  response   String?   @db.Text
+  isVisible  Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   customerId String
   userId     String
+  customers  customers @relation(fields: [customerId], references: [id])
+  users      users     @relation(fields: [userId], references: [id])
 
-  // Relations
-  customer   Customer @relation(fields: [customerId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
-
-  @@map("reviews")
+  @@index([customerId], map: "reviews_customerId_fkey")
+  @@index([userId], map: "reviews_userId_fkey")
 }
 
-model Promotion {
-  id          String      @id @default(cuid())
+model promotions {
+  id          String        @id @default(cuid())
   name        String
-  description String?     @db.Text
+  description String?       @db.Text
   type        PromotionType
-  value       Decimal     @db.Decimal(10, 2) // pourcentage ou montant fixe
-  code        String?     @unique
-  minAmount   Decimal?    @db.Decimal(10, 2)
-  maxDiscount Decimal?    @db.Decimal(10, 2)
+  value       Decimal       @db.Decimal(10, 2)
+  code        String?       @unique
+  minAmount   Decimal?      @db.Decimal(10, 2)
+  maxDiscount Decimal?      @db.Decimal(10, 2)
   usageLimit  Int?
-  usageCount  Int         @default(0)
+  usageCount  Int           @default(0)
   startDate   DateTime
   endDate     DateTime
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  // Foreign Keys
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   userId      String
+  users       users         @relation(fields: [userId], references: [id])
 
-  // Relations
-  user        User        @relation(fields: [userId], references: [id])
-
-  @@map("promotions")
+  @@index([userId], map: "promotions_userId_fkey")
 }
 
-model Reservation {
-  id           String            @id @default(cuid())
-  date         DateTime
-  time         String
-  partySize    Int
-  status       ReservationStatus @default(PENDING)
-  notes        String?           @db.Text
-  specialRequests String?        @db.Text
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+model legaldocuments {
+  id              String    @id @default(cuid())
+  name            String
+  type            String
+  status          String
+  file            String?
+  rejectionReason String?
+  uploadDate      DateTime?
+  expiryDate      DateTime?
+  required        Boolean   @default(false)
+  userId          String
+  users           users     @relation(fields: [userId], references: [id])
 
-  // Foreign Keys
-  customerId   String
-  userId       String
-
-  // Relations
-  customer     Customer          @relation(fields: [customerId], references: [id])
-  user         User              @relation(fields: [userId], references: [id])
-
-  @@map("reservations")
+  @@unique([userId, name])
 }
 
-model Payment {
-  id            String        @id @default(cuid())
-  amount        Decimal       @db.Decimal(10, 2)
-  method        PaymentMethod
-  status        PaymentStatus @default(PENDING)
-  transactionId String?       @unique
-  gatewayResponse String?     @db.Text
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+model campagnes {
+  id             String   @id @default(uuid())
+  name           String
+  type           String
+  status         String
+  budget         Float
+  spent          Float
+  impressions    Int
+  clicks         Int
+  conversions    Int
+  startDate      DateTime
+  endDate        DateTime
+  targetAudience String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  userId         String
+  users          users    @relation(fields: [userId], references: [id])
 
-  // Foreign Keys
-  orderId       String        @unique
-  userId        String
-
-  // Relations
-  order         Order         @relation(fields: [orderId], references: [id])
-  user          User          @relation(fields: [userId], references: [id])
-
-  @@map("payments")
+  @@index([userId], map: "campagnes_userId_fkey")
 }
 
-// Enums
+model reservations {
+  id              String            @id @default(cuid())
+  date            DateTime
+  time            String
+  partySize       Int
+  status          ReservationStatus @default(PENDING)
+  notes           String?           @db.Text
+  specialRequests String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  customerId      String
+  userId          String
+  customers       customers         @relation(fields: [customerId], references: [id])
+  users           users             @relation(fields: [userId], references: [id])
+
+  @@index([customerId], map: "reservations_customerId_fkey")
+  @@index([userId], map: "reservations_userId_fkey")
+}
+
+model payments {
+  id              String        @id @default(cuid())
+  amount          Decimal       @db.Decimal(10, 2)
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?       @unique
+  gatewayResponse String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orderId         String        @unique
+  userId          String
+  orders          orders        @relation(fields: [orderId], references: [id])
+  users           users         @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "payments_userId_fkey")
+}
+
+model menu_settings {
+  id               String   @id @default(cuid())
+  title            String
+  subtitle         String?
+  description      String?
+  showPrices       Boolean  @default(true)
+  showDescriptions Boolean  @default(true)
+  showImages       Boolean  @default(false)
+  colorTheme       String   @default("droovo")
+  layout           String   @default("classic")
+  language         String   @default("fr")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model loyalty_points {
+  id          String @id @default(cuid())
+  current     Int    @default(0)
+  totalEarned Int    @default(0)
+  customerId  String
+
+  // Relation avec customers
+  customer customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId])
+}
+
+model loyalty_transactions {
+  id          String      @id @default(cuid())
+  type        LoyaltyType
+  points      Int
+  description String
+  orderId     String?
+  date        DateTime    @default(now())
+  customerId  String
+
+  // Relation avec customers
+  customer customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+enum LoyaltyType {
+  earned
+  redeemed
+}
+
 enum Role {
   ADMIN
   RESTAURANT

@@ -1,69 +1,67 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation" // Assurez-vous d'importer useRouter
-import Link from "next/link"
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     rememberMe: false,
-  })
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter() // Utiliser useRouter après "use client"
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  // Fonction pour valider les données du formulaire
+  // Nettoyer l'erreur quand l'utilisateur tape
+  const onChange = (field: keyof typeof formData, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (error) setError(null);
+  };
+
   const validateForm = () => {
-    if (!formData.email || !formData.password) {
-      setError("Tous les champs sont obligatoires")
-      return false
+    if (!formData.email.trim() || !formData.password) {
+      setError("Tous les champs sont obligatoires");
+      return false;
     }
-    return true
-  }
+    return true;
+  };
 
-  // Fonction pour soumettre le formulaire
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    // Valider le formulaire
-    if (!validateForm()) return
-
-    setError(null) // Réinitialiser l'erreur avant la soumission
-
+    e.preventDefault();
+  
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      })
-
-      const data = await response.json()
-
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
+        credentials: "include",
+      });
+  
+      const data = await response.json();
+      console.log("Response status:", response.status);
+      console.log("Response data:", data);
+  
       if (response.ok) {
-        // Si la connexion est réussie, redirigez l'utilisateur vers le dashboard
-        alert("Connexion réussie !")
-        router.push("/") // Remplacez "/dashboard" par la route vers le tableau de bord
+        console.log("Connexion réussie !");
+        router.push("/");
       } else {
-        setError(data.error || "Une erreur est survenue lors de la connexion.")
+        setError(data.error || "Une erreur est survenue lors de la connexion.");
       }
     } catch (error) {
-      console.error("Erreur lors de la connexion:", error)
-      setError("Erreur serveur")
+      console.error("Erreur lors de la connexion :", error);
+      setError("Erreur serveur");
     }
-  }
+  };
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
@@ -84,7 +82,6 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Afficher l'erreur si elle existe */}
             {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,7 +97,7 @@ export default function LoginPage() {
                     placeholder="votre@email.com"
                     className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => onChange("email", e.target.value)}
                     required
                   />
                 </div>
@@ -118,7 +115,7 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     className="pl-10 pr-10 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) => onChange("password", e.target.value)}
                     required
                   />
                   <Button
@@ -127,6 +124,7 @@ export default function LoginPage() {
                     size="icon"
                     className="absolute right-0 top-0 h-full px-3 hover:bg-transparent dark:text-gray-400 dark:hover:text-white"
                     onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
@@ -138,7 +136,7 @@ export default function LoginPage() {
                   <Checkbox
                     id="remember"
                     checked={formData.rememberMe}
-                    onCheckedChange={(checked) => setFormData({ ...formData, rememberMe: checked as boolean })}
+                    onCheckedChange={(checked) => onChange("rememberMe", checked as boolean)}
                   />
                   <Label htmlFor="remember" className="text-sm dark:text-gray-300">
                     Se souvenir de moi
@@ -152,8 +150,12 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full bg-droovo-gradient hover:opacity-90 text-white dark:text-white">
-                Se connecter
+              <Button
+                type="submit"
+                className="w-full bg-droovo-gradient hover:opacity-90 text-white dark:text-white"
+                disabled={isLoading}
+              >
+                {isLoading ? "Connexion..." : "Se connecter"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </form>
@@ -177,5 +179,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

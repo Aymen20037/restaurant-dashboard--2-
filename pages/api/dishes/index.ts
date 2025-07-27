@@ -1,100 +1,128 @@
-import type { NextApiResponse } from "next"
-import { prisma } from "@/lib/prisma"
-import { withAuth, type AuthenticatedRequest } from "@/lib/middleware/auth"
-import { createDishSchema } from "@/lib/validations/dish"
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getIronSession } from "iron-session";
+import { sessionOptions } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { createDishSchema, CreateDishInput } from "@/lib/validations/dish";
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
-  const { method } = req
+type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  restaurantName: string;
+};
 
-  switch (method) {
-    case "GET":
-      return getDishes(req, res)
-    case "POST":
-      return createDish(req, res)
-    default:
-      return res.status(405).json({ error: "Méthode non autorisée" })
+async function getSessionUser(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<SessionUser> {
+  const session = await getIronSession<{ user?: SessionUser }>(
+    req,
+    res,
+    sessionOptions
+  );
+
+  if (!session.user) {
+    throw new Error("Utilisateur non connecté");
   }
+
+  return session.user;
 }
 
-async function getDishes(req: AuthenticatedRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   try {
-    const { page = 1, limit = 10, category, search, available } = req.query
+    // Auth utilisateur
+    const user = await getSessionUser(req, res);
 
-    const where: any = {
-      userId: req.user.userId,
-    }
+    if (req.method === "GET") {
+      const { category, search } = req.query;
 
-    if (category) {
-      where.categoryId = category
-    }
+      const where: any = {
+        userId: user.id, 
+      };
 
-    if (search) {
-      where.OR = [{ name: { contains: search as string } }, { description: { contains: search as string } }]
-    }
+      if (category && typeof category === "string" && category !== "all") {
+        where.categoryId = category;
+      }
 
-    if (available !== undefined) {
-      where.isAvailable = available === "true"
-    }
+      if (search && typeof search === "string") {
+        where.name = {
+          contains: search,
+          mode: "insensitive",
+        };
+      }
 
-    const dishes = await prisma.dish.findMany({
-      where,
-      include: {
-        category: true,
-        _count: {
-          select: {
-            orderItems: true,
-          },
+      const dishes = await prisma.dishes.findMany({
+        where,
+        include: {
+          categories: true,
         },
-      },
-      skip: (Number(page) - 1) * Number(limit),
-      take: Number(limit),
-      orderBy: {
-        createdAt: "desc",
-      },
-    })
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
-    const total = await prisma.dish.count({ where })
-
-    res.status(200).json({
-      dishes,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        pages: Math.ceil(total / Number(limit)),
-      },
-    })
-  } catch (error) {
-    console.error("Erreur récupération plats:", error)
-    res.status(500).json({ error: "Erreur serveur" })
-  }
-}
-
-async function createDish(req: AuthenticatedRequest, res: NextApiResponse) {
-  try {
-    const validatedData = createDishSchema.parse(req.body)
-
-    const dish = await prisma.dish.create({
-      data: {
-        ...validatedData,
-        userId: req.user.userId,
-      },
-      include: {
-        category: true,
-      },
-    })
-
-    res.status(201).json({
-      message: "Plat créé avec succès",
-      dish,
-    })
-  } catch (error) {
-    console.error("Erreur création plat:", error)
-    if (error instanceof Error && error.message.includes("validation")) {
-      return res.status(400).json({ error: "Données invalides" })
+      return res.status(200).json({ dishes });
     }
-    res.status(500).json({ error: "Erreur serveur" })
+
+    if (req.method === "POST") {
+      const parsedBody = createDishSchema.safeParse(req.body);
+
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: "Données invalides",
+          details: parsedBody.error.errors,
+        });
+      }
+
+      const data: CreateDishInput = parsedBody.data;
+
+      
+  let ingredientsParsed: string | null = null;
+
+  if (data.ingredients) {
+    if (typeof data.ingredients === "string") {
+      // transforme en tableau puis join en string séparée par virgules
+      const arr = data.ingredients
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      ingredientsParsed = arr.join(", ");
+    } else if (Array.isArray(data.ingredients)) {
+      // join directement
+      ingredientsParsed = data.ingredients.join(", ");
+    }
+  }
+
+      const newDish = await prisma.dishes.create({
+        data: {
+          name: data.name,
+          description: data.description || null,
+          price: data.price,
+          image: data.image || null,
+          isAvailable: data.isAvailable,
+          preparationTime: data.preparationTime || null,
+          ingredients: ingredientsParsed, // <-- ici string ou null
+          allergens: data.allergens || null,
+          calories: data.calories || null,
+          isVegetarian: data.isVegetarian,
+          isVegan: data.isVegan,
+          isGlutenFree: data.isGlutenFree,
+          categories: { connect: { id: data.categoryId } },
+          users: { connect: { id: user.id } },
+        },
+      });
+
+      return res.status(201).json({ dish: newDish });
+    }
+
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).json({ error: "Méthode non autorisée" });
+  } catch (error: any) {
+    console.error("Erreur API /api/dishes :", error.message || error);
+    return res.status(401).json({ error: error.message || "Non authentifié" });
   }
 }
-
-export default withAuth(handler)

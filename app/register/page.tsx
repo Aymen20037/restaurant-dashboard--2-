@@ -1,103 +1,99 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import Link from "next/link"
-import { Eye, EyeOff, Mail, Lock, User, Phone, MapPin, ArrowRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useRouter } from "next/navigation"
+import { useState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff, Mail, Lock, User, Phone, MapPin, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     restaurantName: "",
     email: "",
     phone: "",
     address: "",
     city: "",
+    cuisineIds: [] as string[],
+    name: "",
     password: "",
     confirmPassword: "",
     acceptTerms: false,
-    cuisine: "",
-    name: ""// Assurez-vous que le champ `name` est présent dans l'état
-  })
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  // Fonction pour valider les données du formulaire
+  const onChange = (field: keyof typeof formData, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (error) setError(null);
+  };
+
   const validateForm = () => {
-    // Log de débogage pour vérifier les valeurs de formData avant validation
-    console.log("Form Data avant validation:", formData);
-
     if (
-      !formData.restaurantName ||
-      !formData.email ||
+      !formData.restaurantName.trim() ||
+      !formData.email.trim() ||
       !formData.password ||
       !formData.confirmPassword ||
-      !formData.cuisine ||
-      !formData.name // Assurez-vous que `name` est bien défini
+      formData.cuisineIds.length === 0 ||
+      !formData.name.trim()
     ) {
-      setError("Tous les champs sont obligatoires")
-      return false
+      setError("Tous les champs obligatoires doivent être remplis.");
+      return false;
     }
-
+    if (!formData.acceptTerms) {
+      setError("Vous devez accepter les conditions d'utilisation.");
+      return false;
+    }
     if (formData.password !== formData.confirmPassword) {
-      setError("Les mots de passe ne correspondent pas")
-      return false
+      setError("Les mots de passe ne correspondent pas.");
+      return false;
     }
+    return true;
+  };
 
-    return true
-  }
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  // Fonction pour soumettre le formulaire
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    // Log de débogage pour vérifier avant la soumission
-    console.log("Form Data envoyé à l'API:", formData);
-
-    // Valider le formulaire
-    if (!validateForm()) return
-
-    setError(null) // Réinitialiser l'erreur avant la soumission
-
+    setIsLoading(true);
     try {
       const response = await fetch("/api/auth/register", {
-        method: "POST", // Méthode POST
-        headers: {
-          "Content-Type": "application/json", // En-tête JSON
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
           restaurantName: formData.restaurantName,
+          email: formData.email,
           phone: formData.phone,
           address: formData.address,
           city: formData.city,
-          cuisine: formData.cuisine,   // Assurez-vous que ce champ est envoyé
-          name: formData.name,         // Assurez-vous que ce champ est envoyé
+          cuisineIds: formData.cuisineIds,
+          name: formData.name,
+          password: formData.password,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        alert("Inscription réussie ! Vous pouvez maintenant vous connecter.")
-        router.push("/login")
+        alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
+        router.push("/login");
       } else {
-        setError(data.error || "Une erreur est survenue lors de l'inscription.")
+        setError(data.error || "Une erreur est survenue lors de l'inscription.");
       }
-    } catch (error) {
-      console.error("Erreur lors de l'inscription:", error)
-      setError("Erreur serveur")
+    } catch (err) {
+      console.error("Erreur lors de l'inscription :", err);
+      setError("Erreur serveur");
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50 flex items-center justify-center p-4">
@@ -117,211 +113,202 @@ export default function RegisterPage() {
               Remplissez les informations pour créer votre compte
             </CardDescription>
           </CardHeader>
+
           <CardContent>
-            {/* Afficher l'erreur si elle existe */}
             {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Informations du restaurant</h3>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="restaurantName">Nom du restaurant *</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="restaurantName"
-                        placeholder="Le Marrakchi"
-                        className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                        value={formData.restaurantName}
-                        onChange={(e) => setFormData({ ...formData, restaurantName: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="ownerName">Nom du gérant *</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="ownerName"
-                        placeholder="Mohammed Alami"
-                        className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="cuisine">Type de cuisine *</Label>
-                  <div className="relative">
-                    <Input
-                      id="cuisine"
-                      placeholder="Italienne"
-                      className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                      value={formData.cuisine}
-                      onChange={(e) => setFormData({ ...formData, cuisine: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Adresse complète *</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input
-                      id="address"
-                      placeholder="123 Avenue Mohammed V"
-                      className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="city">Ville *</Label>
-                  <Select value={formData.city} onValueChange={(value) => setFormData({ ...formData, city: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez votre ville" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="casablanca">Casablanca</SelectItem>
-                      <SelectItem value="rabat">Rabat</SelectItem>
-                      <SelectItem value="marrakech">Marrakech</SelectItem>
-                      <SelectItem value="fes">Fès</SelectItem>
-                      <SelectItem value="tanger">Tanger</SelectItem>
-                      <SelectItem value="agadir">Agadir</SelectItem>
-                      <SelectItem value="meknes">Meknès</SelectItem>
-                      <SelectItem value="oujda">Oujda</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Nom restaurant */}
+              <div className="space-y-2">
+                <Label htmlFor="restaurantName">Nom du restaurant *</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="restaurantName"
+                    placeholder="Le Marrakchi"
+                    className="pl-10"
+                    value={formData.restaurantName}
+                    onChange={(e) => onChange("restaurantName", e.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
-              {/* Informations de contact */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Informations de contact</h3>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="contact@restaurant.ma"
-                        className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Téléphone *</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="phone"
-                        placeholder="+212 6XX XXX XXX"
-                        className="pl-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
+              {/* Nom gérant */}
+              <div className="space-y-2">
+                <Label htmlFor="name">Nom du gérant *</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="name"
+                    placeholder="Mohammed Alami"
+                    className="pl-10"
+                    value={formData.name}
+                    onChange={(e) => onChange("name", e.target.value)}
+                    required
+                  />
                 </div>
               </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="exemple@email.com"
+                    className="pl-10"
+                    value={formData.email}
+                    onChange={(e) => onChange("email", e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Téléphone */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Téléphone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="phone"
+                    placeholder="+212 6 12 34 56 78"
+                    className="pl-10"
+                    value={formData.phone}
+                    onChange={(e) => onChange("phone", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Adresse */}
+              <div className="space-y-2">
+                <Label htmlFor="address">Adresse</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="address"
+                    placeholder="123 Rue de Casablanca"
+                    className="pl-10"
+                    value={formData.address}
+                    onChange={(e) => onChange("address", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Ville */}
+              <div className="space-y-2">
+                <Label htmlFor="city">Ville</Label>
+                <Input
+                  id="city"
+                  placeholder="Casablanca"
+                  value={formData.city}
+                  onChange={(e) => onChange("city", e.target.value)}
+                />
+              </div>
+
+              {/* Cuisine */}
+<div className="space-y-2">
+  <Label htmlFor="cuisine">Type de cuisine *</Label>
+  <Select
+     value={formData.cuisineIds[0] || ""}
+     onValueChange={(value) =>
+       setFormData((prev) => ({ ...prev, cuisineIds: [value] }))
+     }
+  >
+    <SelectTrigger id="cuisine" className="w-full">
+      <SelectValue placeholder="Sélectionnez une cuisine" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="843ec1d7-6a1e-11f0-aa0f-1c394712cdca">Marocain</SelectItem>
+      <SelectItem value="843ec45e-6a1e-11f0-aa0f-1c394712cdca">Libanais</SelectItem>
+      <SelectItem value="843ec4f3-6a1e-11f0-aa0f-1c394712cdca">Italien</SelectItem>
+      <SelectItem value="843ec542-6a1e-11f0-aa0f-1c394712cdca">Indien</SelectItem>
+      <SelectItem value="843ec592-6a1e-11f0-aa0f-1c394712cdca">Healthy</SelectItem>
+      <SelectItem value="843ed053-6a1e-11f0-aa0f-1c394712cdca">Français</SelectItem>
+      <SelectItem value="843ed0e7-6a1e-11f0-aa0f-1c394712cdca">Desserts</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+
 
               {/* Mot de passe */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Sécurité</h3>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Mot de passe *</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        className="pl-10 pr-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirmer le mot de passe *</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="confirmPassword"
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        className="pl-10 pr-10 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                        value={formData.confirmPassword}
-                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
+              <div className="space-y-2 relative">
+                <Label htmlFor="password">Mot de passe *</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    className="pl-10 pr-10"
+                    value={formData.password}
+                    onChange={(e) => onChange("password", e.target.value)}
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                 </div>
               </div>
 
+              {/* Confirmer mot de passe */}
+              <div className="space-y-2 relative">
+                <Label htmlFor="confirmPassword">Confirmer le mot de passe *</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    className="pl-10 pr-10"
+                    value={formData.confirmPassword}
+                    onChange={(e) => onChange("confirmPassword", e.target.value)}
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Accepter conditions */}
               <div className="flex items-center space-x-2">
                 <Checkbox
-                  id="terms"
+                  id="acceptTerms"
                   checked={formData.acceptTerms}
-                  onCheckedChange={(checked) => setFormData({ ...formData, acceptTerms: checked as boolean })}
+                  onCheckedChange={(checked) => onChange("acceptTerms", checked as boolean)}
                   required
                 />
-                <Label htmlFor="terms" className="text-sm">
+                <Label htmlFor="acceptTerms" className="text-sm">
                   J'accepte les{" "}
-                  <Link href="/terms" className="text-purple-600 hover:text-purple-700">
+                  <Link href="/terms" className="text-purple-600 hover:text-purple-700 font-medium">
                     conditions d'utilisation
-                  </Link>{" "}
-                  et la{" "}
-                  <Link href="/privacy" className="text-purple-600 hover:text-purple-700">
-                    politique de confidentialité
                   </Link>
                 </Label>
               </div>
 
-              <Button type="submit" className="w-full bg-droovo-gradient hover:opacity-90 text-white dark:text-white">
-                Créer mon compte restaurant
+              <Button
+                type="submit"
+                className="w-full bg-droovo-gradient hover:opacity-90 text-white"
+                disabled={isLoading}
+              >
+                {isLoading ? "Création en cours..." : "Créer mon compte restaurant"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </form>
@@ -342,5 +329,5 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

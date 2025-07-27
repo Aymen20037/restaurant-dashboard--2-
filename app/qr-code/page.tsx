@@ -1,52 +1,116 @@
 "use client"
 
-import { useState } from "react"
-import { QrCode, Download, Share2, Eye, Copy, Smartphone, Printer } from "lucide-react"
+import { useEffect, useState } from "react"
+import { QrCode, Download, Copy, Smartphone, Printer, Eye, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sidebar } from "../components/sidebar"
 import { toast } from "@/components/ui/use-toast"
+import jsPDF from "jspdf"
+
+
+interface QrSettings {
+  restaurantName: string
+  description: string
+  customMessage: string
+}
 
 export default function QRCodePage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [qrSettings, setQrSettings] = useState({
-    restaurantName: "Le Marrakchi",
-    description: "Restaurant traditionnel marocain",
-    promoActive: true,
-    promoText: "10% de réduction sur votre première commande",
-    customMessage: "Bienvenue chez Le Marrakchi ! Scannez pour commander",
+  const [qrSettings, setQrSettings] = useState<QrSettings>({
+    restaurantName: "",
+    description: "",
+    customMessage: "",
   })
 
-  const restaurantUrl = `https://droovo.app/restaurant/le-marrakchi`
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const res = await fetch("/api/user")
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        setQrSettings({
+          restaurantName: data.restaurantName ?? "",
+          description: data.description ?? "",
+          customMessage: data.customMessage ?? "",
+        })
+      } catch {
+        toast({ title: "Erreur", description: "Impossible de charger les informations" })
+      }
+    }
+    fetchUserData()
+  }, [])
+
+  const restaurantSlug = qrSettings.restaurantName.toLowerCase().replace(/\s+/g, "-")
+  const restaurantUrl = `https://droovo.app/restaurant/${encodeURIComponent(restaurantSlug)}`
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(restaurantUrl)}`
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-    toast({
-      title: "Copié !",
-      description: "Le lien a été copié dans le presse-papiers",
-    })
+    toast({ title: "Copié !", description: "Le lien a été copié dans le presse-papiers" })
   }
 
   const downloadQR = (format: string) => {
     const link = document.createElement("a")
     link.href = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&format=${format}&data=${encodeURIComponent(restaurantUrl)}`
-    link.download = `qr-code-le-marrakchi.${format}`
+    link.download = `qr-code.${format}`
     link.click()
   }
+  const handlePrintPDF = () => {
+    const doc = new jsPDF()
+    const img = new Image()
+    img.src = qrCodeUrl 
+  
+    img.onload = () => {
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const centerX = pageWidth / 2
+  
+      const imgWidth = 100
+      const imgHeight = 100
+      const imgX = centerX - imgWidth / 2
+      const imgY = 40
+  
+      doc.setFontSize(18)
+      doc.setTextColor(40, 40, 40)
+      doc.text("QR Code de votre restaurant", centerX, 20, { align: "center" })
+  
+      doc.setDrawColor(200)
+      doc.rect(imgX - 5, imgY - 5, imgWidth + 10, imgHeight + 10) 
+  
+      doc.addImage(img, "PNG", imgX, imgY, imgWidth, imgHeight)
+  
+      doc.setFontSize(14)
+      doc.setTextColor(60, 60, 60)
+      doc.text(qrSettings.restaurantName, centerX, imgY + imgHeight + 15, { align: "center" })
+  
+      doc.setFontSize(11)
+      doc.setTextColor(90, 90, 90)
+      doc.text(qrSettings.description, centerX, imgY + imgHeight + 25, { align: "center" })
+  
+      if (qrSettings.customMessage) {
+        doc.setFontSize(10)
+        doc.setTextColor(100, 100, 100)
+        doc.text(qrSettings.customMessage, centerX, imgY + imgHeight + 40, { align: "center" })
+      }
+  
+      doc.setFontSize(8)
+      doc.setTextColor(150)
+      doc.text("Généré par Droovo", centerX, 280, { align: "center" })
+  
+      doc.save("Votre-QR-Code.pdf")
+    }
+  }
+  
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50">
       <Sidebar isOpen={isSidebarOpen} />
-
       <div className="flex-1">
-        {/* Header */}
         <header className="sticky top-0 z-10 bg-droovo-gradient shadow-lg">
           <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
             <h1 className="text-xl font-bold text-white">QR Code & Lien Personnel</h1>
@@ -62,9 +126,10 @@ export default function QRCodePage() {
               <TabsTrigger value="analytics">Statistiques</TabsTrigger>
             </TabsList>
 
+            {/* QR CODE VIEW */}
             <TabsContent value="qr-code" className="space-y-6">
               <div className="grid gap-6 lg:grid-cols-2">
-                {/* QR Code Display */}
+
                 <Card className="border-0 shadow-lg">
                   <CardHeader className="text-center">
                     <CardTitle className="flex items-center justify-center gap-2">
@@ -72,20 +137,19 @@ export default function QRCodePage() {
                       Votre QR Code
                     </CardTitle>
                     <CardDescription>
-                      Les clients peuvent scanner ce code pour accéder directement à votre restaurant
+                      Les clients peuvent scanner ce code pour accéder à votre restaurant
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex justify-center">
                       <div className="p-4 bg-white rounded-lg shadow-inner">
-                        <img src={qrCodeUrl || "/placeholder.svg"} alt="QR Code Restaurant" className="w-64 h-64" />
+                        <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
                       </div>
                     </div>
 
                     <div className="text-center space-y-2">
                       <p className="font-semibold text-lg">{qrSettings.restaurantName}</p>
                       <p className="text-sm text-gray-600">{qrSettings.description}</p>
-                      {qrSettings.promoActive && <Badge className="bg-orange-500">{qrSettings.promoText}</Badge>}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -99,116 +163,78 @@ export default function QRCodePage() {
                       </Button>
                     </div>
 
-                    <Button className="w-full" variant="outline">
-                      <Printer className="mr-2 h-4 w-4" />
-                      Imprimer pour affichage
-                    </Button>
+                    <Button className="w-full" variant="outline" onClick={handlePrintPDF}>
+  <Printer className="mr-2 h-4 w-4" />
+  Imprimer pour affichage
+</Button>
+
                   </CardContent>
                 </Card>
 
-                {/* QR Code Settings */}
+                {/* Custom Message */}
                 <Card className="border-0 shadow-lg">
                   <CardHeader>
                     <CardTitle>Personnalisation</CardTitle>
-                    <CardDescription>Configurez les informations affichées avec le QR code</CardDescription>
+                    <CardDescription>Message affiché avec le QR code</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <Label htmlFor="restaurantName">Nom du restaurant</Label>
-                      <Input
-                        id="restaurantName"
-                        value={qrSettings.restaurantName}
-                        onChange={(e) => setQrSettings({ ...qrSettings, restaurantName: e.target.value })}
-                      />
+                      <Label>Nom du restaurant</Label>
+                      <Input value={qrSettings.restaurantName} readOnly />
                     </div>
-
                     <div>
-                      <Label htmlFor="description">Description</Label>
-                      <Input
-                        id="description"
-                        value={qrSettings.description}
-                        onChange={(e) => setQrSettings({ ...qrSettings, description: e.target.value })}
-                      />
-                    </div>
+  <Label>Description</Label>
+  <Input
+    value={qrSettings.description}
+    onChange={(e) => setQrSettings({ ...qrSettings, description: e.target.value })}
+/>
+</div>
 
-                    <div>
-                      <Label htmlFor="customMessage">Message personnalisé</Label>
-                      <Textarea
-                        id="customMessage"
-                        value={qrSettings.customMessage}
-                        onChange={(e) => setQrSettings({ ...qrSettings, customMessage: e.target.value })}
-                        rows={3}
-                      />
-                    </div>
+<div>
+  <Label>Message personnalisé</Label>
+  <Textarea
+    value={qrSettings.customMessage}
+    rows={3}
+    onChange={(e) => setQrSettings({ ...qrSettings, customMessage: e.target.value })}
+/>
+</div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="promoActive">Promotion active</Label>
-                        <p className="text-sm text-gray-600">Afficher une promotion avec le QR code</p>
-                      </div>
-                      <Switch
-                        id="promoActive"
-                        checked={qrSettings.promoActive}
-                        onCheckedChange={(checked) => setQrSettings({ ...qrSettings, promoActive: checked })}
-                      />
-                    </div>
+<Button
+  className="w-full mt-2 bg-droovo-gradient hover:opacity-90"
+  onClick={async () => {
+    try {
+      const res = await fetch("/api/user", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description: qrSettings.description,
+          customMessage: qrSettings.customMessage,
+        }),
+      })
 
-                    {qrSettings.promoActive && (
-                      <div>
-                        <Label htmlFor="promoText">Texte de la promotion</Label>
-                        <Input
-                          id="promoText"
-                          value={qrSettings.promoText}
-                          onChange={(e) => setQrSettings({ ...qrSettings, promoText: e.target.value })}
-                        />
-                      </div>
-                    )}
+      if (!res.ok) throw new Error()
+      toast({ title: "Modifications enregistrées", description: "Vos informations ont été mises à jour" })
+    } catch {
+      toast({ title: "Erreur", description: "Échec de la mise à jour des informations" })
+    }
+  }}
+>
+  Sauvegarder les modifications
+</Button>
 
-                    <Button className="w-full bg-droovo-gradient hover:opacity-90">
-                      Sauvegarder les modifications
-                    </Button>
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Usage Instructions */}
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle>Comment utiliser votre QR Code</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="text-center space-y-2">
-                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto">
-                        <Printer className="h-6 w-6 text-purple-600" />
-                      </div>
-                      <h3 className="font-semibold">1. Imprimez</h3>
-                      <p className="text-sm text-gray-600">Téléchargez et imprimez votre QR code</p>
-                    </div>
-                    <div className="text-center space-y-2">
-                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto">
-                        <Eye className="h-6 w-6 text-orange-600" />
-                      </div>
-                      <h3 className="font-semibold">2. Affichez</h3>
-                      <p className="text-sm text-gray-600">Placez-le dans votre restaurant, sur vos tables</p>
-                    </div>
-                    <div className="text-center space-y-2">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                        <Smartphone className="h-6 w-6 text-green-600" />
-                      </div>
-                      <h3 className="font-semibold">3. Clients scannent</h3>
-                      <p className="text-sm text-gray-600">Accès direct à votre menu et commande</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
 
+            {/* LINK TAB */}
             <TabsContent value="link" className="space-y-6">
               <Card className="border-0 shadow-lg">
                 <CardHeader>
-                  <CardTitle>Lien Personnel du Restaurant</CardTitle>
-                  <CardDescription>Partagez ce lien sur vos réseaux sociaux et supports marketing</CardDescription>
+                  <CardTitle>Lien Personnel</CardTitle>
+                  <CardDescription>Partagez ce lien sur vos réseaux sociaux</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
@@ -217,85 +243,25 @@ export default function QRCodePage() {
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
-
                   <div className="grid gap-4 md:grid-cols-2">
                     <Button className="bg-green-500 hover:bg-green-600">
                       <Share2 className="mr-2 h-4 w-4" />
-                      Partager sur WhatsApp
+                      WhatsApp
                     </Button>
                     <Button className="bg-blue-500 hover:bg-blue-600">
                       <Share2 className="mr-2 h-4 w-4" />
-                      Partager sur Facebook
+                      Facebook
                     </Button>
-                  </div>
-
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h4 className="font-semibold mb-2">Aperçu du partage</h4>
-                    <div className="border rounded-lg p-3 bg-white">
-                      <h5 className="font-semibold">{qrSettings.restaurantName}</h5>
-                      <p className="text-sm text-gray-600">{qrSettings.description}</p>
-                      <p className="text-xs text-blue-600 mt-1">{restaurantUrl}</p>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
+            {/* ANALYTICS */}
             <TabsContent value="analytics" className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Scans aujourd'hui</p>
-                        <p className="text-2xl font-bold text-purple-600">47</p>
-                      </div>
-                      <QrCode className="h-8 w-8 text-purple-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Scans ce mois</p>
-                        <p className="text-2xl font-bold text-orange-600">1,234</p>
-                      </div>
-                      <Smartphone className="h-8 w-8 text-orange-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Conversions</p>
-                        <p className="text-2xl font-bold text-green-600">23%</p>
-                      </div>
-                      <Eye className="h-8 w-8 text-green-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Commandes via QR</p>
-                        <p className="text-2xl font-bold text-blue-600">289</p>
-                      </div>
-                      <Share2 className="h-8 w-8 text-blue-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
               <Card className="border-0 shadow-lg">
                 <CardHeader>
                   <CardTitle>Activité des scans</CardTitle>
-                  <CardDescription>Nombre de scans par jour sur les 30 derniers jours</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-64 flex items-end justify-between gap-1">

@@ -24,10 +24,11 @@ import {
 import { Button } from "@/components/ui/button"
 
 interface SidebarProps {
-  isOpen?: boolean
+  isOpen?: boolean;
+  orderCount?: number;
 }
 
-export function Sidebar({ isOpen = true }: SidebarProps) {
+export function Sidebar({ isOpen = true , orderCount = 0 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   const menuItems = [
@@ -46,7 +47,7 @@ export function Sidebar({ isOpen = true }: SidebarProps) {
       title: "Commandes",
       icon: ShoppingBag,
       href: "/commandes",
-      badge: "12",
+      badge: orderCount > 0 ? orderCount.toString() : undefined,
     },
     {
       title: "Plats",
@@ -108,7 +109,7 @@ export function Sidebar({ isOpen = true }: SidebarProps) {
         collapsed ? "w-16" : "w-64",
       )}
     >
-      {/* Header avec gradient Droovo */}
+      {/* Header  */}
       <div className="flex h-16 items-center justify-between bg-droovo-gradient px-4">
         <div className={cn("flex items-center gap-3", collapsed && "justify-center w-full")}>
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
@@ -156,18 +157,7 @@ export function Sidebar({ isOpen = true }: SidebarProps) {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-200 p-4">
-        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-          <Button variant="outline" size="icon" className="h-10 w-10 border-purple-200 hover:bg-purple-50">
-            <Settings className="h-4 w-4 text-purple-600" />
-          </Button>
-          {!collapsed && (
-            <Button variant="outline" size="icon" className="h-10 w-10 border-orange-200 hover:bg-orange-50">
-              <HelpCircle className="h-4 w-4 text-orange-600" />
-            </Button>
-          )}
-        </div>
-      </div>
+     
     </div>
   )
 }

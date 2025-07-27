@@ -1,11 +1,23 @@
 "use client"
 
-import { useState } from "react"
-import { Upload, FileText, Check, X, Eye, Download, AlertCircle } from "lucide-react"
+import { useEffect, useState } from "react"
+import {
+  Upload,
+  FileText,
+  Check,
+  X,
+  Eye,
+  Download,
+  AlertCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -19,74 +31,62 @@ import {
 import { Sidebar } from "../components/sidebar"
 import { cn } from "@/lib/utils"
 
+type Document = {
+  id: string
+  name: string
+  type?: string
+  status: string
+  uploadDate: string | null
+  expiryDate?: string | null
+  file: string | null
+  required?: boolean
+  rejectionReason?: string | null
+}
+
+const documentTypes = [
+  { value: "registre_commerce", label: "Registre de commerce" },
+  { value: "attestation_fiscale", label: "Attestation fiscale" },
+  { value: "cin_gerant", label: "CIN du gérant" },
+  { value: "licence_exploitation", label: "Licence d'exploitation" },
+]
+
 export default function DocumentsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const documents = [
-    {
-      id: 1,
-      name: "Registre de Commerce",
-      type: "Obligatoire",
-      status: "Approuvé",
-      uploadDate: "2023-05-15",
-      expiryDate: "2024-05-15",
-      file: "registre-commerce.pdf",
-      required: true,
-    },
-    {
-      id: 2,
-      name: "Attestation Fiscale",
-      type: "Obligatoire",
-      status: "En attente",
-      uploadDate: "2023-05-20",
-      expiryDate: "2024-05-20",
-      file: "attestation-fiscale.pdf",
-      required: true,
-    },
-    {
-      id: 3,
-      name: "CIN du Gérant",
-      type: "Obligatoire",
-      status: "Approuvé",
-      uploadDate: "2023-05-10",
-      expiryDate: "2028-05-10",
-      file: "cin-gerant.pdf",
-      required: true,
-    },
-    {
-      id: 4,
-      name: "Licence d'Exploitation",
-      type: "Obligatoire",
-      status: "Rejeté",
-      uploadDate: "2023-05-18",
-      expiryDate: "2024-05-18",
-      file: "licence-exploitation.pdf",
-      required: true,
-      rejectionReason: "Document illisible, veuillez télécharger une version plus claire",
-    },
-    {
-      id: 5,
-      name: "Certificat d'Hygiène",
-      type: "Recommandé",
-      status: "Non fourni",
-      uploadDate: null,
-      expiryDate: null,
-      file: null,
-      required: false,
-    },
-    {
-      id: 6,
-      name: "Assurance Responsabilité",
-      type: "Recommandé",
-      status: "Approuvé",
-      uploadDate: "2023-05-12",
-      expiryDate: "2024-05-12",
-      file: "assurance.pdf",
-      required: false,
-    },
-  ]
+  // Upload formulaire (nouveau document)
+  const [selectedType, setSelectedType] = useState(documentTypes[0].value)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadingNewDoc, setUploadingNewDoc] = useState(false)
 
-  const getStatusColor = (status: string) => {
+  // Upload remplacement (par docId)
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<{ [key: string]: File | null }>(
+    {}
+  )
+
+  useEffect(() => {
+    fetchDocuments()
+  }, [])
+
+  async function fetchDocuments() {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/documents")
+      if (!res.ok) throw new Error(`Erreur ${res.status}`)
+      const data = await res.json()
+      setDocuments(data)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function getStatusColor(status: string) {
     switch (status) {
       case "Approuvé":
         return "bg-green-500"
@@ -101,7 +101,7 @@ export default function DocumentsPage() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  function getStatusIcon(status: string) {
     switch (status) {
       case "Approuvé":
         return <Check className="h-4 w-4" />
@@ -115,8 +115,79 @@ export default function DocumentsPage() {
   }
 
   const approvedDocs = documents.filter((doc) => doc.status === "Approuvé").length
-  const totalRequired = documents.filter((doc) => doc.required).length
-  const completionRate = (approvedDocs / documents.length) * 100
+  const completionRate =
+    documents.length === 0 ? 0 : (approvedDocs / documents.length) * 100
+
+  // Upload nouveau document
+  async function handleUploadNewDocument() {
+    if (!selectedFile) {
+      alert("Veuillez sélectionner un fichier avant de télécharger.")
+      return
+    }
+    setUploadingNewDoc(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("name", selectedFile.name)
+      formData.append("type", selectedType)
+      formData.append("file", selectedFile)
+
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Erreur lors de l'upload")
+      }
+
+      alert("Document téléchargé avec succès.")
+      setSelectedFile(null)
+      await fetchDocuments()
+    } catch (error: any) {
+      alert("Erreur : " + error.message)
+    } finally {
+      setUploadingNewDoc(false)
+    }
+  }
+
+  // Remplacer document existant
+  async function handleReplaceUpload(docId: string) {
+    const file = selectedFiles[docId]
+    if (!file) return alert("Veuillez sélectionner un fichier avant de télécharger.")
+    setUploadingDocId(docId)
+
+    try {
+      const formData = new FormData()
+      formData.append("id", docId)
+      formData.append("file", file)
+
+      const res = await fetch("/api/documents", {
+        method: "PUT",
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Erreur lors de l'upload")
+      }
+
+      const updatedDoc = await res.json()
+      setDocuments((docs) =>
+        docs.map((d) => (d.id === updatedDoc.id ? { ...d, ...updatedDoc } : d))
+      )
+      setSelectedFiles((prev) => ({ ...prev, [docId]: null }))
+      alert("Document téléchargé avec succès.")
+    } catch (error: any) {
+      alert("Erreur : " + error.message)
+    } finally {
+      setUploadingDocId(null)
+    }
+  }
+
+  if (loading) return <p className="p-6">Chargement des documents...</p>
+  if (error) return <p className="p-6 text-red-600">Erreur : {error}</p>
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50">
@@ -134,11 +205,52 @@ export default function DocumentsPage() {
         </header>
 
         <main className="p-6 space-y-6">
+          {/* Formulaire Upload Nouveau Document */}
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle>Télécharger un nouveau document</CardTitle>
+              <CardDescription>
+                Choisissez le type de document et sélectionnez le fichier à uploader.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
+              <select
+                className="border border-gray-300 rounded px-3 py-2"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+              >
+                {documentTypes.map((doc) => (
+                  <option key={doc.value} value={doc.value}>
+                    {doc.label}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) =>
+                  setSelectedFile(e.target.files ? e.target.files[0] : null)
+                }
+              />
+
+              <Button
+                className="whitespace-nowrap"
+                onClick={handleUploadNewDocument}
+                disabled={uploadingNewDoc || !selectedFile}
+              >
+                {uploadingNewDoc ? "Téléchargement..." : "Télécharger"}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Progress Overview */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle>État de vos documents</CardTitle>
-              <CardDescription>Progression de la validation de vos documents légaux</CardDescription>
+              <CardDescription>
+                Progression de la validation de vos documents légaux
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -199,105 +311,134 @@ export default function DocumentsPage() {
                         </h3>
                         <p className="text-sm text-gray-600">
                           {doc.uploadDate
-                            ? `Téléchargé le ${new Date(doc.uploadDate).toLocaleDateString("fr-FR")}`
+                            ? `Téléchargé le ${new Date(
+                                doc.uploadDate
+                              ).toLocaleDateString("fr-FR")}`
                             : "Non téléchargé"}
                         </p>
                         {doc.expiryDate && (
                           <p className="text-xs text-gray-500">
-                            Expire le {new Date(doc.expiryDate).toLocaleDateString("fr-FR")}
+                            Expire le{" "}
+                            {new Date(doc.expiryDate).toLocaleDateString("fr-FR")}
                           </p>
                         )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <Badge className={cn("text-white flex items-center gap-1", getStatusColor(doc.status))}>
+                      <Badge
+                        className={cn(
+                          "text-white flex items-center gap-1",
+                          getStatusColor(doc.status)
+                        )}
+                      >
                         {getStatusIcon(doc.status)}
                         {doc.status}
                       </Badge>
 
-                      <div className="flex gap-2">
-                        {doc.file ? (
-                          <>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button size="sm" variant="outline">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-4xl">
-                                <DialogHeader>
-                                  <DialogTitle>{doc.name}</DialogTitle>
-                                  <DialogDescription>
-                                    Document téléchargé le {new Date(doc.uploadDate).toLocaleDateString("fr-FR")}
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <div className="aspect-[4/3] bg-gray-100 rounded-lg flex items-center justify-center">
-                                    <div className="text-center">
-                                      <FileText className="h-16 w-16 text-gray-400 mx-auto mb-2" />
-                                      <p className="text-gray-600">Aperçu du document</p>
-                                      <p className="text-sm text-gray-500">{doc.file}</p>
-                                    </div>
-                                  </div>
+                      {doc.file && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(`/uploads/${doc.file}`, "_blank")}
+                          title={`Télécharger ${doc.name}`}
+                        >
+                          <Download className="mr-1 h-4 w-4" />
+                          Télécharger
+                        </Button>
+                      )}
 
-                                  {doc.status === "Rejeté" && doc.rejectionReason && (
-                                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                                      <div className="flex items-center gap-2 text-red-800 mb-2">
-                                        <X className="h-4 w-4" />
-                                        <span className="font-semibold">Raison du rejet</span>
-                                      </div>
-                                      <p className="text-red-700 text-sm">{doc.rejectionReason}</p>
-                                    </div>
-                                  )}
-
-                                  <div className="flex gap-2">
-                                    <Button className="bg-droovo-gradient hover:opacity-90">
-                                      <Download className="mr-2 h-4 w-4" />
-                                      Télécharger
-                                    </Button>
-                                    {doc.status === "Rejeté" && (
-                                      <Button variant="outline">
-                                        <Upload className="mr-2 h-4 w-4" />
-                                        Remplacer
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          </>
-                        ) : (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button size="sm" className="bg-droovo-gradient hover:opacity-90">
-                                <Upload className="mr-2 h-4 w-4" />
-                                Télécharger
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Télécharger {doc.name}</DialogTitle>
-                                <DialogDescription>
-                                  Sélectionnez le fichier à télécharger (PDF, JPG, PNG acceptés)
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div>
-                                  <Label htmlFor="file">Fichier</Label>
-                                  <Input id="file" type="file" accept=".pdf,.jpg,.jpeg,.png" />
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button className="bg-droovo-gradient hover:opacity-90">
-                                    Télécharger le document
-                                  </Button>
-                                  <Button variant="outline">Annuler</Button>
-                                </div>
+                      {/* Bouton Aperçu */}
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl">
+                          <DialogHeader>
+                            <DialogTitle>{doc.name}</DialogTitle>
+                            <DialogDescription>
+                              Document téléchargé le{" "}
+                              {doc.uploadDate
+                                ? new Date(doc.uploadDate).toLocaleDateString("fr-FR")
+                                : ""}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="aspect-[4/3] bg-gray-100 rounded-lg flex items-center justify-center">
+                              <div className="text-center">
+                                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+                                <p className="text-gray-600">Aperçu du document</p>
+                                <p className="text-sm text-gray-500">{doc.file}</p>
                               </div>
-                            </DialogContent>
-                          </Dialog>
-                        )}
-                      </div>
+                            </div>
+
+                            {doc.status === "Rejeté" && doc.rejectionReason && (
+                              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                                <div className="flex items-center gap-2 text-red-800 mb-2">
+                                  <X className="h-4 w-4" />
+                                  <span className="font-semibold">Raison du rejet</span>
+                                </div>
+                                <p className="text-red-700 text-sm">{doc.rejectionReason}</p>
+                              </div>
+                            )}
+
+                            <div className="flex gap-2 items-center">
+                              {doc.status === "Rejeté" && (
+                                <>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onChange={(e) =>
+                                      setSelectedFiles((prev) => ({
+                                        ...prev,
+                                        [doc.id]: e.target.files ? e.target.files[0] : null,
+                                      }))
+                                    }
+                                    disabled={uploadingDocId === doc.id}
+                                  />
+                                  <Button
+                                    variant="outline"
+                                    disabled={
+                                      uploadingDocId === doc.id || !selectedFiles[doc.id]
+                                    }
+                                    onClick={() => handleReplaceUpload(doc.id)}
+                                  >
+                                    {uploadingDocId === doc.id
+                                      ? "Téléchargement..."
+                                      : "Remplacer"}
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
+                      {!doc.file && (
+                        <>
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) =>
+                              setSelectedFiles((prev) => ({
+                                ...prev,
+                                [doc.id]: e.target.files ? e.target.files[0] : null,
+                              }))
+                            }
+                            disabled={uploadingDocId === doc.id}
+                          />
+                          <Button
+                            size="sm"
+                            className="bg-droovo-gradient hover:opacity-90"
+                            disabled={uploadingDocId === doc.id || !selectedFiles[doc.id]}
+                            onClick={() => handleReplaceUpload(doc.id)}
+                          >
+                            {uploadingDocId === doc.id ? "Téléchargement..." : "Télécharger"}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardContent>

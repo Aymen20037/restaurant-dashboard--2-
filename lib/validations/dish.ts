@@ -7,7 +7,10 @@ export const createDishSchema = z.object({
   categoryId: z.string().min(1, "La catégorie est requise"),
   image: z.string().url().optional(),
   preparationTime: z.number().positive().optional(),
-  ingredients: z.string().optional(),
+  ingredients: z.union([
+    z.string(),
+    z.array(z.string()),
+  ]).optional(), 
   allergens: z.string().optional(),
   calories: z.number().positive().optional(),
   isVegetarian: z.boolean().default(false),

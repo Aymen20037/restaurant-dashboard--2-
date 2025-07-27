@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, CreditCard, DollarSign, TrendingUp, Download, Eye, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,74 +19,69 @@ import {
 import { Sidebar } from "../components/sidebar"
 import { cn } from "@/lib/utils"
 
+import * as XLSX from "xlsx"
+import { saveAs } from "file-saver"
+
+type Payment = {
+  id: string
+  orderId: string
+  client: string
+  amount: number
+  method: string
+  status: string
+  date: string
+  time: string
+  commission: number
+  net: number
+}
+
 export default function PaiementsPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [periodFilter, setPeriodFilter] = useState("month")
 
-  const payments = [
-    {
-      id: "PAY-7352",
-      orderId: "ORD-7352",
-      client: "Mohammed Alami",
-      amount: 155,
-      method: "Carte bancaire",
-      status: "Payé",
-      date: "2023-05-28",
-      time: "14:30",
-      commission: 7.75,
-      net: 147.25,
-    },
-    {
-      id: "PAY-7353",
-      orderId: "ORD-7353",
-      client: "Fatima Benali",
-      amount: 320,
-      method: "Espèces",
-      status: "Payé",
-      date: "2023-05-28",
-      time: "14:45",
-      commission: 0,
-      net: 320,
-    },
-    {
-      id: "PAY-7354",
-      orderId: "ORD-7354",
-      client: "Karim Idrissi",
-      amount: 130,
-      method: "PayPal",
-      status: "En attente",
-      date: "2023-05-28",
-      time: "15:00",
-      commission: 6.5,
-      net: 123.5,
-    },
-    {
-      id: "PAY-7355",
-      orderId: "ORD-7355",
-      client: "Leila Mansouri",
-      amount: 170,
-      method: "Carte bancaire",
-      status: "Payé",
-      date: "2023-05-27",
-      time: "13:15",
-      commission: 8.5,
-      net: 161.5,
-    },
-    {
-      id: "PAY-7356",
-      orderId: "ORD-7356",
-      client: "Youssef Tazi",
-      amount: 110,
-      method: "Virement",
-      status: "Remboursé",
-      date: "2023-05-27",
-      time: "12:30",
-      commission: 0,
-      net: 0,
-    },
-  ]
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchPayments()
+  }, [])
+
+  async function fetchPayments() {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/payments")
+      if (!res.ok) throw new Error("Erreur lors de la récupération des paiements")
+      const data: Payment[] = await res.json()
+      setPayments(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function updatePaymentStatus(paymentId: string, action: "markPaid" | "cancel") {
+    try {
+      const res = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId, action }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert("Erreur: " + data.message)
+        return
+      }
+      alert("Statut mis à jour !")
+      fetchPayments()
+    } catch {
+      alert("Erreur réseau lors de la mise à jour.")
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -107,6 +102,7 @@ export default function PaiementsPage() {
     switch (method) {
       case "Carte bancaire":
       case "PayPal":
+      case "Stripe":
         return <CreditCard className="h-4 w-4" />
       default:
         return <DollarSign className="h-4 w-4" />
@@ -122,24 +118,50 @@ export default function PaiementsPage() {
     return matchesSearch && matchesStatus
   })
 
-  // Calculs des statistiques
   const totalRevenue = payments.filter((p) => p.status === "Payé").reduce((sum, p) => sum + p.amount, 0)
   const totalCommissions = payments.filter((p) => p.status === "Payé").reduce((sum, p) => sum + p.commission, 0)
   const netRevenue = payments.filter((p) => p.status === "Payé").reduce((sum, p) => sum + p.net, 0)
   const pendingAmount = payments.filter((p) => p.status === "En attente").reduce((sum, p) => sum + p.amount, 0)
+
+  // Fonction export Excel
+  const exportToExcel = () => {
+    const dataForExcel = filteredPayments.map(p => ({
+      Transaction: p.id,
+      Commande: p.orderId,
+      Client: p.client,
+      Montant: p.amount,
+      Méthode: p.method,
+      Commission: p.commission,
+      Net: p.net,
+      Statut: p.status,
+      Date: p.date,
+      Heure: p.time,
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(dataForExcel)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Paiements")
+
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" })
+    const blobData = new Blob([excelBuffer], { type: "application/octet-stream" })
+    saveAs(blobData, `paiements_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50">
       <Sidebar isOpen={isSidebarOpen} />
 
       <div className="flex-1">
-        {/* Header */}
         <header className="sticky top-0 z-10 bg-droovo-gradient shadow-lg">
           <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
             <h1 className="text-xl font-bold text-white">Gestion des Paiements</h1>
             <Badge className="bg-white/20 text-white">{filteredPayments.length} transactions</Badge>
             <div className="ml-auto">
-              <Button className="bg-white/20 hover:bg-white/30 text-white" variant="outline">
+              <Button
+                className="bg-white/20 hover:bg-white/30 text-white"
+                variant="outline"
+                onClick={exportToExcel}
+              >
                 <Download className="mr-2 h-4 w-4" />
                 Exporter
               </Button>
@@ -148,7 +170,9 @@ export default function PaiementsPage() {
         </header>
 
         <main className="p-6 space-y-6">
-          {/* Stats Cards */}
+          {error && <p className="text-red-600 font-semibold">{error}</p>}
+          {loading && <p>Chargement des paiements...</p>}
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card className="border-0 shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -195,7 +219,6 @@ export default function PaiementsPage() {
             </Card>
           </div>
 
-          {/* Filters */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row gap-4">
@@ -206,9 +229,10 @@ export default function PaiementsPage() {
                     className="pl-10"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    disabled={loading}
                   />
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={statusFilter} onValueChange={setStatusFilter} disabled={loading}>
                   <SelectTrigger className="w-full md:w-48">
                     <SelectValue placeholder="Filtrer par statut" />
                   </SelectTrigger>
@@ -220,7 +244,7 @@ export default function PaiementsPage() {
                     <SelectItem value="Échoué">Échoué</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <Select value={periodFilter} onValueChange={setPeriodFilter} disabled={loading}>
                   <SelectTrigger className="w-full md:w-48">
                     <SelectValue placeholder="Période" />
                   </SelectTrigger>
@@ -235,7 +259,6 @@ export default function PaiementsPage() {
             </CardContent>
           </Card>
 
-          {/* Payments Table */}
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle>Historique des paiements</CardTitle>
@@ -286,7 +309,7 @@ export default function PaiementsPage() {
                       <TableCell>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" disabled={loading}>
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
@@ -347,8 +370,20 @@ export default function PaiementsPage() {
 
                               {payment.status === "En attente" && (
                                 <div className="flex gap-2 pt-4">
-                                  <Button className="bg-green-500 hover:bg-green-600">Marquer comme payé</Button>
-                                  <Button variant="destructive">Annuler la transaction</Button>
+                                  <Button
+                                    className="bg-green-500 hover:bg-green-600"
+                                    onClick={() => updatePaymentStatus(payment.id, "markPaid")}
+                                    disabled={loading}
+                                  >
+                                    Marquer comme payé
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => updatePaymentStatus(payment.id, "cancel")}
+                                    disabled={loading}
+                                  >
+                                    Annuler la transaction
+                                  </Button>
                                 </div>
                               )}
                             </div>

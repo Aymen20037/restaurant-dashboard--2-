@@ -1,101 +1,99 @@
-import type { NextApiResponse } from "next"
-import { prisma } from "@/lib/prisma"
-import { withAuth, type AuthenticatedRequest } from "@/lib/middleware/auth"
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getIronSession } from "iron-session";
+import { sessionOptions } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Méthode non autorisée" })
-  }
+type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  restaurantName?: string;
+};
 
-  try {
-    const { period = "30" } = req.query
-    const userId = req.user.userId
-    const days = Number.parseInt(period as string)
+type RevenueData = {
+  day: string;   
+  amount: number;
+};
 
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - days)
-
-    // Revenus par jour
-    const revenueData = (await prisma.$queryRaw`
-      SELECT 
-        DATE(createdAt) as date,
-        SUM(totalAmount) as revenue,
-        COUNT(*) as orders
-      FROM orders 
-      WHERE userId = ${userId} 
-        AND createdAt >= ${startDate}
-        AND status IN ('DELIVERED', 'COMPLETED')
-      GROUP BY DATE(createdAt)
-      ORDER BY date ASC
-    `) as Array<{
-      date: Date
-      revenue: number
-      orders: number
-    }>
-
-    // Revenus par catégorie
-    const revenueByCategory = (await prisma.$queryRaw`
-      SELECT 
-        c.name as category,
-        SUM(oi.price * oi.quantity) as revenue,
-        SUM(oi.quantity) as quantity
-      FROM order_items oi
-      JOIN dishes d ON oi.dishId = d.id
-      JOIN categories c ON d.categoryId = c.id
-      JOIN orders o ON oi.orderId = o.id
-      WHERE o.userId = ${userId}
-        AND o.createdAt >= ${startDate}
-        AND o.status IN ('DELIVERED', 'COMPLETED')
-      GROUP BY c.id, c.name
-      ORDER BY revenue DESC
-    `) as Array<{
-      category: string
-      revenue: number
-      quantity: number
-    }>
-
-    // Top plats
-    const topDishes = (await prisma.$queryRaw`
-      SELECT 
-        d.name as dish,
-        SUM(oi.quantity) as quantity,
-        SUM(oi.price * oi.quantity) as revenue
-      FROM order_items oi
-      JOIN dishes d ON oi.dishId = d.id
-      JOIN orders o ON oi.orderId = o.id
-      WHERE o.userId = ${userId}
-        AND o.createdAt >= ${startDate}
-        AND o.status IN ('DELIVERED', 'COMPLETED')
-      GROUP BY d.id, d.name
-      ORDER BY quantity DESC
-      LIMIT 10
-    `) as Array<{
-      dish: string
-      quantity: number
-      revenue: number
-    }>
-
-    res.status(200).json({
-      revenueData: revenueData.map((item) => ({
-        date: item.date.toISOString().split("T")[0],
-        revenue: Number(item.revenue),
-        orders: Number(item.orders),
-      })),
-      revenueByCategory: revenueByCategory.map((item) => ({
-        category: item.category,
-        revenue: Number(item.revenue),
-        quantity: Number(item.quantity),
-      })),
-      topDishes: topDishes.map((item) => ({
-        dish: item.dish,
-        quantity: Number(item.quantity),
-        revenue: Number(item.revenue),
-      })),
-    })
-  } catch (error) {
-    console.error("Erreur récupération revenus:", error)
-    res.status(500).json({ error: "Erreur serveur" })
-  }
+async function getSessionUser(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<SessionUser> {
+  const session = await getIronSession<{ user?: SessionUser }>(
+    req,
+    res,
+    sessionOptions
+  );
+  if (!session.user) throw new Error("Utilisateur non connecté");
+  return session.user;
 }
 
-export default withAuth(handler)
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<RevenueData[] | { error: string }>
+) {
+  try {
+    const user = await getSessionUser(req, res);
+
+    if (req.method !== "GET") {
+      return res.status(405).json({ error: "Méthode non autorisée" });
+    }
+
+
+    const now = new Date();
+    const dayOfWeek = now.getDay(); 
+
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(now.getDate() - diffToMonday);
+
+    const weekDates = Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d;
+    });
+
+    const orders = await prisma.orders.findMany({
+      where: {
+        userId: user.id,
+        status: { in: ["CONFIRMED", "PREPARING", "READY", "DELIVERED"] },
+        createdAt: {
+          gte: monday,
+          lt: new Date(monday.getTime() + 7 * 24 * 60 * 60 * 1000),
+        },
+      },
+      select: {
+        totalAmount: true,
+        createdAt: true,
+      },
+    });
+
+    // Agréger les montants par jour
+    const revenueByDay: Record<string, number> = {};
+
+    orders.forEach(({ totalAmount, createdAt }) => {
+      const dateKey = createdAt.toISOString().slice(0, 10);
+      revenueByDay[dateKey] = (revenueByDay[dateKey] ?? 0) + Number(totalAmount);
+    });
+
+    const dayLabels = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+    const revenueData: RevenueData[] = weekDates.map((date, i) => {
+      const key = date.toISOString().slice(0, 10);
+      return {
+        day: dayLabels[i],
+        amount: revenueByDay[key] ?? 0,
+      };
+    });
+
+    res.status(200).json(revenueData);
+  } catch (error: any) {
+    console.error("Erreur API stats revenue:", error.message);
+    if (error.message === "Utilisateur non connecté") {
+      return res.status(401).json({ error: error.message });
+    }
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
+}
