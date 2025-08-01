@@ -126,7 +126,34 @@ export default function Dashboard() {
     type: "Restaurant",
 
   });
-
+  const [uploading, setUploading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("https://via.placeholder.com/80");
+  
+  // Fonction d'upload
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+  
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+  
+    try {
+      setUploading(true);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+  
+      if (res.ok) {
+        setLogoUrl(data.url);
+      } else {
+        alert(data.error || "Erreur upload");
+      }
+    } catch (error) {
+      console.error("Erreur upload", error);
+    } finally {
+      setUploading(false);
+    }
+  }
+  
   const [customerReviews, setCustomerReviews] = useState<Review[]>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
 
@@ -385,24 +412,25 @@ export default function Dashboard() {
 
 
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="flex items-center gap-2 pl-2 pr-1 text-white hover:bg-white/20"
-                  >
-                    <Avatar className="h-8 w-8 ring-2 ring-white/30">
-                      <AvatarImage src="/placeholder.svg" alt={userRestaurant.name} />
-                      <AvatarFallback className="bg-white text-purple-600 font-bold">
-                        {userRestaurant.name[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="hidden md:block text-left">
-                      <p className="text-sm font-medium">{userRestaurant.name}</p>
-                      <p className="text-xs text-white/70">{userRestaurant.type}</p>
-                    </div>
-                    <ChevronDown className="h-4 w-4 opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild>
+  <div className="flex items-center gap-2 pl-2 pr-1 text-white hover:bg-white/20 rounded-md cursor-pointer">
+    {/* Avatar avec image ou fallback */}
+    <Avatar className="h-8 w-8 ring-2 ring-white/30">
+      <AvatarImage src={logoUrl} alt={userRestaurant.name} />
+      <AvatarFallback className="bg-white text-purple-600 font-bold">
+        {userRestaurant.name[0]}
+      </AvatarFallback>
+    </Avatar>
+
+    <div className="hidden md:block text-left">
+      <p className="text-sm font-medium">{userRestaurant.name}</p>
+      <p className="text-xs text-white/70">{userRestaurant.type}</p>
+    </div>
+
+    <ChevronDown className="h-4 w-4 opacity-70" />
+  </div>
+</DropdownMenuTrigger>
+
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
                   <DropdownMenuSeparator />

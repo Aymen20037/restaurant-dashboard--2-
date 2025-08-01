@@ -185,9 +185,15 @@ export default function DocumentsPage() {
       setUploadingDocId(null)
     }
   }
-
-  if (loading) return <p className="p-6">Chargement des documents...</p>
-  if (error) return <p className="p-6 text-red-600">Erreur : {error}</p>
+  if (loading) 
+    return (
+      <div className="p-6 text-center flex justify-center items-center">
+        <div className="h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  
+  if (error) return <div className="p-6 text-center text-red-600">Erreur : {error}</div>
+  
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-50 via-white to-orange-50">

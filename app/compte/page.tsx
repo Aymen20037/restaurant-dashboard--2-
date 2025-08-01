@@ -16,6 +16,7 @@ type UserData = {
   email: string
   phone?: string
   address?: string
+  logo?: string // Ajout du logo
   notifications?: {
     email: boolean
     sms: boolean
@@ -27,6 +28,8 @@ type UserData = {
     loginAlerts: boolean
   }
 }
+
+
 
 export default function ComptePage() {
   const [isSidebarOpen] = useState(true)
@@ -51,6 +54,31 @@ export default function ComptePage() {
 
     fetchUserData()
   }, [])
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+  
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+  
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        setUserData((prev) => prev ? { ...prev, logo: data.url } : prev);
+        await fetch("/api/account", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...userData, logo: data.url }),
+        });
+      } else {
+        alert(data.error || "Erreur upload");
+      }
+    } catch (error) {
+      console.error("Erreur upload", error);
+    }
+  }
+  
 
   const handleSave = async () => {
     if (!userData) return
@@ -109,15 +137,27 @@ export default function ComptePage() {
                   </CardHeader>
                   <CardContent className="flex flex-col items-center space-y-4">
                     <div className="relative">
-                      <Avatar className="h-32 w-32">
-                        <AvatarImage src="/placeholder.svg" />
-                        <AvatarFallback className="text-2xl bg-droovo-gradient text-white">U</AvatarFallback>
-                      </Avatar>
-                      {isEditing && (
-                        <Button size="icon" className="absolute bottom-0 right-0 bg-droovo-gradient hover:opacity-90">
-                          <Camera className="h-4 w-4" />
-                        </Button>
-                      )}
+                    <Avatar className="h-32 w-32">
+  <AvatarImage src={userData.logo || "/placeholder.svg"} alt={userData.name} />
+  <AvatarFallback className="text-2xl bg-droovo-gradient text-white">
+    {userData.name ? userData.name[0].toUpperCase() : "U"}
+  </AvatarFallback>
+</Avatar>
+
+
+{isEditing && (
+  <label className="absolute bottom-0 right-0 cursor-pointer">
+    <input 
+      type="file" 
+      accept="image/*" 
+      className="hidden"
+      onChange={handleLogoChange}
+    />
+    <Button size="icon" className="bg-droovo-gradient hover:opacity-90">
+      <Camera className="h-4 w-4" />
+    </Button>
+  </label>
+)}
                     </div>
                   </CardContent>
                 </Card>

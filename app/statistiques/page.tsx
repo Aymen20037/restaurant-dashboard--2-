@@ -106,10 +106,16 @@ export default function StatistiquesPage() {
     fetchStats()
   }, [])
 
-  if (loading) return <div className="p-6 text-center">Chargement...</div>
+  if (loading) 
+    return (
+      <div className="p-6 text-center flex justify-center items-center">
+        <div className="h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  
   if (error) return <div className="p-6 text-center text-red-600">Erreur : {error}</div>
   if (!stats) return null
-
+  
 
   const salesTrendData = {
     labels: [

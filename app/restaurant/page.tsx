@@ -294,34 +294,51 @@ export default function RestaurantPage() {
                   <div className="relative">
                     <div className="aspect-square rounded-lg bg-gradient-to-br from-purple-100 to-orange-100 flex items-center justify-center">
                       <Avatar className="h-32 w-32">
-                      <AvatarImage src={restaurantData.logo || "/placeholder.svg"} alt="Restaurant" />
+                      <AvatarImage
+  src={restaurantData.logo || "/placeholder.svg"}
+  alt="Restaurant"
+/>
+
+
+
                       <AvatarFallback className="text-2xl bg-droovo-gradient text-white">LM</AvatarFallback>
                       </Avatar>
                     </div>
                     {isEditing && (
   <>
-    <input
-      id="file-upload"
-      type="file"
-      accept="image/*"
-      className="hidden"
-      onChange={async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+   <input
+  id="file-upload"
+  type="file"
+  accept="image/*"
+  className="hidden"
+  onChange={async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result?.toString();
-          if (base64) {
-            setRestaurantData((prev) => ({
-              ...prev,
-              logo: base64,
-            }));
-          }
-        };
-        reader.readAsDataURL(file);
-      }}
-    />
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setRestaurantData((prev) => ({
+          ...prev,
+          logo: data.url, // On stocke l'URL du fichier
+        }));
+      } else {
+        alert(data.error || "Erreur lors de l'upload");
+      }
+    } catch (error) {
+      console.error("Erreur upload :", error);
+    }
+  }}
+/>
+
     <Button
       type="button"
       size="icon"
