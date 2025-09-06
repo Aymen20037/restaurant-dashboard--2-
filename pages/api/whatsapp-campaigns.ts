@@ -4,7 +4,6 @@ import { sessionOptions } from "@/lib/session"
 import { prisma } from "@/lib/prisma"
 import type { campagnes as Campagne } from "@prisma/client"
 
-// ✅ Définition du type de l'utilisateur de session
 type SessionUser = {
   id: string
   email: string
@@ -13,12 +12,10 @@ type SessionUser = {
   restaurantName: string
 }
 
-// ✅ Définition des types de réponse
 type WhatsAppCampaignResponse =
   | { campaigns: Campagne[] }
   | { error: string }
 
-// ✅ Fonction pour récupérer l'utilisateur connecté
 async function getSessionUser(
   req: NextApiRequest,
   res: NextApiResponse
@@ -30,7 +27,6 @@ async function getSessionUser(
   return session.user
 }
 
-// ✅ Handler principal
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<WhatsAppCampaignResponse>

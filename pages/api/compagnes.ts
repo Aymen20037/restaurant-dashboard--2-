@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getIronSession } from "iron-session";
-import { sessionOptions } from "@/lib/session"; // ton config iron-session
+import { sessionOptions } from "@/lib/session"; 
 import { prisma } from "@/lib/prisma";
 import { compagneSchema } from "@/lib/validations/compagne";
 
@@ -20,16 +20,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const user = await getSessionUser(req, res);
 
-    const { id } = req.query;
+    const { id, type } = req.query;
 
+    // --- GET toutes les campagnes (optionnellement filtrées par type)
     if (req.method === "GET" && !id) {
       const campagnes = await prisma.campagnes.findMany({
-        where: { userId: user.id },
+        where: { 
+          userId: user.id,
+          ...(type ? { type: String(type) } : {}), // ajout du filtre dynamique
+        },
         orderBy: { createdAt: "desc" },
       });
       return res.status(200).json(campagnes);
     }
 
+    // --- POST créer une campagne
     if (req.method === "POST") {
       const parseResult = compagneSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -57,19 +62,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(201).json(newCampaign);
     }
 
+    // --- Vérifie si l'ID est valide
     if (!id || typeof id !== "string") {
       return res.status(400).json({ error: "ID invalide ou manquant." });
     }
 
+    // --- GET une campagne spécifique
     if (req.method === "GET") {
-      const campagne = await prisma.campagnes.findUnique({
-        where: { id },
-      });
+      const campagne = await prisma.campagnes.findUnique({ where: { id } });
       if (!campagne) return res.status(404).json({ error: "Campagne introuvable." });
       if (campagne.userId !== user.id) return res.status(403).json({ error: "Accès refusé" });
       return res.status(200).json(campagne);
     }
 
+    // --- PUT mise à jour
     if (req.method === "PUT") {
       const updateSchema = compagneSchema.omit({ userId: true }).partial();
       const parseResult = updateSchema.safeParse(req.body);
@@ -78,11 +84,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const data = parseResult.data;
     
-      // Convertir les dates en Date si présentes
       if (data.startDate) data.startDate = new Date(data.startDate);
       if (data.endDate) data.endDate = new Date(data.endDate);
     
-      // Vérifier appartenance
       const campagne = await prisma.campagnes.findUnique({ where: { id } });
       if (!campagne) return res.status(404).json({ error: "Campagne introuvable." });
       if (campagne.userId !== user.id) return res.status(403).json({ error: "Accès refusé" });
@@ -95,6 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json(updated);
     }
     
+    // --- DELETE suppression
     if (req.method === "DELETE") {
       const campagne = await prisma.campagnes.findUnique({ where: { id } });
       if (!campagne) return res.status(404).json({ error: "Campagne introuvable." });
