@@ -34,10 +34,8 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    // Auth utilisateur
     const user = await getSessionUser(req, res);
 
-    // === GET /api/dishes ===
     if (req.method === "GET") {
       const { category, search } = req.query;
 
@@ -66,11 +64,9 @@ export default async function handler(
         },
       });
 
-      // Pas de split : renvoyer `ingredients` tel quel (string ou null)
       return res.status(200).json({ dishes });
     }
 
-    // === POST /api/dishes ===
     if (req.method === "POST") {
       const parsedBody = createDishSchema.safeParse(req.body);
 
@@ -83,7 +79,6 @@ export default async function handler(
 
       const data: CreateDishInput = parsedBody.data;
 
-      // Normaliser ingredients en string
       let ingredientsParsed: string | null = null;
       if (data.ingredients) {
         if (typeof data.ingredients === "string") {
@@ -105,7 +100,7 @@ export default async function handler(
           image: data.image || null,
           isAvailable: data.isAvailable,
           preparationTime: data.preparationTime || null,
-          ingredients: ingredientsParsed, // toujours string ou null
+          ingredients: ingredientsParsed, 
           allergens: data.allergens || null,
           calories: data.calories || null,
           isVegetarian: data.isVegetarian,

@@ -1,4 +1,3 @@
-// pages/api/validate-session.ts
 import { getIronSession } from "iron-session";
 import { sessionOptions } from "@/lib/session";
 import type { NextApiRequest, NextApiResponse } from "next";

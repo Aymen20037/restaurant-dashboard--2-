@@ -3,7 +3,6 @@ import formidable, { File } from "formidable";
 import path from "path";
 import fs from "fs";
 
-// Désactiver le bodyParser de Next.js
 export const config = {
   api: {
     bodyParser: false,
@@ -17,7 +16,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const uploadDir = path.join(process.cwd(), "/public/uploads");
 
-  // Assurer que le dossier existe
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -31,7 +29,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const [fields, files] = await form.parse(req);
 
-    // ⚠️ Avec formidable v3, files.file peut être un tableau
     const file = (Array.isArray(files.file) ? files.file[0] : files.file) as File;
 
     if (!file || !file.filepath) {

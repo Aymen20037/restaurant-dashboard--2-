@@ -81,7 +81,7 @@ export default function MenuPDFPage() {
         const dishesJson = await dishesRes.json()
 const dishesData: Dish[] = (dishesJson.dishes || []).map((d: any) => ({
   ...d,
-  category: d.categories || null, // transformer categories -> category
+  category: d.categories || null, 
 }))
 
 

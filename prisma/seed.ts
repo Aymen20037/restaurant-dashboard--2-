@@ -6,7 +6,6 @@ const prisma = new PrismaClient()
 async function main() {
   console.log(" Début du seeding...")
 
-  // Créer un utilisateur admin
   const hashedPassword = await bcrypt.hash("admin123", 12)
 
   const admin = await prisma.users.upsert({
@@ -26,7 +25,6 @@ async function main() {
     },
   })
 
-  // Créer des catégories
   const categories = await Promise.all([
     prisma.categories.upsert({
       where: { id: "cat-1" },

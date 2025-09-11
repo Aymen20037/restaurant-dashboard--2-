@@ -15,7 +15,7 @@ declare module "iron-session" {
       role: string;
       restaurantName: string;
       city?: string;
-      cuisineIds?: string[]; // facultatif selon besoin
+      cuisineIds?: string[]; 
     };
   }
 }
@@ -26,7 +26,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Parse et validation du body (avec cuisineIds: string[])
     const {
       email,
       password,
@@ -40,13 +39,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       cuisineIds,
     } = registerSchema.parse(req.body);
 
-    // Vérifier si email déjà utilisé
     const existingUser = await prisma.users.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: "Cet email est déjà utilisé" });
     }
 
-    // Vérifier que toutes les cuisines existent en base
     const cuisinesExist = await prisma.cuisine.findMany({
       where: {
         id: { in: cuisineIds },
@@ -59,11 +56,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 12);
     const validCuisineIds = cuisinesExist.map(c => c.id);
 
-    // Créer l'utilisateur avec relation cuisines
     const user = await prisma.users.create({
       data: {
         email,
@@ -82,7 +77,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // Créer la session
     const session = await getIronSession<IronSessionData>(req, res, sessionOptions);
     session.user = {
       id: user.id,
@@ -95,7 +89,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
     await session.save();
 
-    // Ne pas renvoyer le mot de passe
     const { password: _, ...userWithoutPassword } = user;
 
     res.status(201).json({

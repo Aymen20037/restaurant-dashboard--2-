@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           email: data.email,
           phone: data.phone,
           address: data.address,
-          logo: data.logo, // Assurez-vous que le logo est une URL valide ou un chemin
+          logo: data.logo, 
           notifications: data.notifications,
           security: data.security,
         },

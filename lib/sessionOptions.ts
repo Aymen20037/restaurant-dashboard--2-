@@ -24,7 +24,7 @@ declare module "iron-session" {
       role: string;
       restaurantName: string;
       city?: string;
-      cuisineIds?: string[]; // facultatif selon besoin
+      cuisineIds?: string[]; 
     };
   }
 }
